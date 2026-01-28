@@ -1,207 +1,115 @@
 import os
-import sqlite3
-from datetime import date
+import datetime
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-import yt_dlp
+from pyrogram.errors import UserNotParticipant
 
-# ========================
-# ENV (Railway Variables)
-# ========================
-api_id = int(os.getenv("API_ID"))
-api_hash = os.getenv("API_HASH")
-bot_token = os.getenv("BOT_TOKEN")
+# ====== ENV ======
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+CHANNEL_1 = os.getenv("CHANNEL_1")  # https://t.me/xxx
+CHANNEL_2 = os.getenv("CHANNEL_2")  # https://t.me/xxx
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
+SUPPORT = os.getenv("SUPPORT")
 
-CHANNELS = [
-    os.getenv("CHANNEL_1"),
-    os.getenv("CHANNEL_2")
-]
+# ====== BOT ======
+app = Client("deva", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-SUPPORT = "https://t.me/Deva_harki"
+users = {}
 
-# ========================
-# DB
-# ========================
-db = sqlite3.connect("db.sqlite", check_same_thread=False)
-cur = db.cursor()
-
-cur.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY)")
-cur.execute("CREATE TABLE IF NOT EXISTS vip (id INTEGER PRIMARY KEY)")
-cur.execute("CREATE TABLE IF NOT EXISTS downloads (id INTEGER, day TEXT, count INTEGER)")
-db.commit()
-
-# ========================
-app = Client(
-    "bot",
-    api_id=api_id,
-    api_hash=api_hash,
-    bot_token=bot_token
-)
-
-# ========================
-# Helpers
-# ========================
-def is_admin(uid):
-    return uid == ADMIN_ID
-
-def is_vip(uid):
-    cur.execute("SELECT id FROM vip WHERE id=?", (uid,))
-    return cur.fetchone() is not None
-
-def add_user(uid):
-    cur.execute("INSERT OR IGNORE INTO users VALUES (?)", (uid,))
-    db.commit()
-
-def get_limit(uid):
-    return 100 if is_vip(uid) else 5
-
-def get_today(uid):
-    today = str(date.today())
-    cur.execute("SELECT count FROM downloads WHERE id=? AND day=?", (uid, today))
-    row = cur.fetchone()
-    return row[0] if row else 0
-
-def add_download(uid):
-    today = str(date.today())
-    cur.execute("SELECT count FROM downloads WHERE id=? AND day=?", (uid, today))
-    row = cur.fetchone()
-    if row:
-        cur.execute("UPDATE downloads SET count=count+1 WHERE id=? AND day=?", (uid, today))
-    else:
-        cur.execute("INSERT INTO downloads VALUES (?,?,1)", (uid, today))
-    db.commit()
-
-def check_join(client, uid):
-    for ch in CHANNELS:
-        try:
-            client.get_chat_member(ch, uid)
-        except:
-            return False
-    return True
-
-# ========================
-# START
-# ========================
-@app.on_message(filters.private & filters.command("start"))
-def start(client, m):
-    add_user(m.from_user.id)
-
-    if not check_join(client, m.from_user.id):
-        m.reply(
-            "❗ تکایە سەرەتا ئەندام ببە لە جەناڵەکان 👇",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("جەناڵ 1", url="https://t.me/chanaly_boot")],
-                [InlineKeyboardButton("جەناڵ 2", url="https://t.me/team_988")],
-                [InlineKeyboardButton("✅ پشکنین", callback_data="check")]
-            ])
-        )
-        return
-
-    m.reply(
-        "🎥 بەخێربێیت بۆ بوتی داونلۆدی ڤیدیۆ\n\n"
-        "🔗 لینک بنێرە بۆ داونلۆد",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("📩 پەیوەندی بە دیڤە", url=SUPPORT)]
-        ])
-    )
-
-# ========================
-# CHECK JOIN
-# ========================
-@app.on_callback_query(filters.regex("check"))
-def chk(client, q):
-    if check_join(client, q.from_user.id):
-        q.message.edit("✅ سوپاس، ئێستا دەتوانیت لینک بنێریت")
-    else:
-        q.answer("هێشتا ئەندام نەبوویت!", show_alert=True)
-
-# ========================
-# DOWNLOAD
-# ========================
-@app.on_message(filters.private & filters.text)
-def download(client, m):
-    uid = m.from_user.id
-    add_user(uid)
-
-    if m.text.startswith("/"):
-        return
-
-    if not check_join(client, uid):
-        m.reply("❗ تکایە سەرەتا ئەندام ببە لە جەناڵەکان")
-        return
-
-    limit = get_limit(uid)
-    today = get_today(uid)
-
-    if today >= limit:
-        m.reply(
-            "❌ سنووری ڕۆژانەت تەواو بوو\n"
-            "بۆ 100 ڤیدیۆ / ڕۆژ نامە بۆ دیڤە بنێرە 👇",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📩 نامە بۆ دیڤە", url=SUPPORT)]
-            ])
-        )
-        return
-
-    msg = m.reply("⏳ داونلۆد دەکرێت...")
-
+# ====== FORCE JOIN ======
+async def force_join(client, message):
     try:
-        ydl_opts = {
-            "outtmpl": "video.mp4",
-            "format": "mp4",
-            "quiet": True
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([m.text])
+        await client.get_chat_member(CHANNEL_1, message.from_user.id)
+        await client.get_chat_member(CHANNEL_2, message.from_user.id)
+        return True
+    except UserNotParticipant:
+        await message.reply(
+            "❌ تکایە سەرەتا جەناڵەکان join بکە",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📢 جەناڵ 1", url=CHANNEL_1)],
+                [InlineKeyboardButton("📢 جەناڵ 2", url=CHANNEL_2)]
+            ])
+        )
+        return False
 
-        client.send_video(uid, "video.mp4")
-        add_download(uid)
-        msg.delete()
-        os.remove("video.mp4")
-
-    except Exception as e:
-        msg.edit("❌ هەڵە ڕوویدا، لینکێکی تر تاقی بکەوە")
-
-# ========================
-# ADMIN PANEL
-# ========================
-@app.on_message(filters.private & filters.command("admin"))
-def admin(client, m):
-    if not is_admin(m.from_user.id):
+# ====== START ======
+@app.on_message(filters.command("start"))
+async def start(client, message):
+    if not await force_join(client, message):
         return
 
-    m.reply(
-        "🎛 پانێلی ئەدمین",
+    await message.reply(
+        "👋 سڵاو!\n\n"
+        "🎥 ڤیدیۆ دابەزێنە\n"
+        "📥 ڕۆژانە 5 ڤیدیۆ بۆ بەکارهێنەر\n\n"
+        "🆘 پشتیوانی",
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("⭐ VIP زیاد بکە", callback_data="addvip")],
-            [InlineKeyboardButton("➖ VIP لاببە", callback_data="rmvip")],
-            [InlineKeyboardButton("📊 ئامار", callback_data="stats")],
-            [InlineKeyboardButton("❌ داخستن", callback_data="close")]
+            [InlineKeyboardButton("📩 Support", url=SUPPORT)]
         ])
     )
 
-@app.on_callback_query(filters.regex("addvip"))
-def addvip(client, q):
-    q.message.reply("ID بنێرە بۆ VIP کردن")
-    q.message.stop_propagation()
+# ====== LIMIT SYSTEM ======
+def can_download(user_id):
+    today = datetime.date.today()
+    if user_id not in users:
+        users[user_id] = {"date": today, "count": 0}
 
-@app.on_callback_query(filters.regex("rmvip"))
-def rmvip(client, q):
-    q.message.reply("ID بنێرە بۆ لابردنی VIP")
-    q.message.stop_propagation()
+    if users[user_id]["date"] != today:
+        users[user_id] = {"date": today, "count": 0}
 
-@app.on_callback_query(filters.regex("stats"))
-def stats(client, q):
-    cur.execute("SELECT COUNT(*) FROM users")
-    users = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM vip")
-    vips = cur.fetchone()[0]
-    q.message.edit(f"👥 بەکارهێنەران: {users}\n⭐ VIP: {vips}")
+    return users[user_id]["count"] < 5
 
-@app.on_callback_query(filters.regex("close"))
-def close(client, q):
-    q.message.delete()
+def add_download(user_id):
+    users[user_id]["count"] += 1
 
-# ========================
+# ====== VIDEO LINK ======
+@app.on_message(filters.text & ~filters.command)
+async def download(client, message):
+    if not await force_join(client, message):
+        return
+
+    uid = message.from_user.id
+
+    if uid != ADMIN_ID and not can_download(uid):
+        await message.reply(
+            "⚠️ سنوور تەواو بوو\n\n"
+            "نامە بنێرە بۆ support بۆ زیادکردنی سنوور 👇",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📩 Support", url=SUPPORT)]
+            ])
+        )
+        return
+
+    add_download(uid)
+
+    await message.reply(
+        "⏳ ڤیدیۆ دابەزێنرێت...\n\n"
+        "⚙️ (ئەم نمونەیە، دەتوانیت yt-dlp زیاد بکەیت)"
+    )
+
+# ====== ADMIN PANEL ======
+@app.on_message(filters.command("admin") & filters.user(ADMIN_ID))
+async def admin(client, message):
+    await message.reply(
+        "👑 Admin Panel",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("📊 Users", callback_data="users")],
+            [InlineKeyboardButton("🔄 Restart", callback_data="restart")]
+        ])
+    )
+
+@app.on_callback_query(filters.regex("users"))
+async def users_count(client, cb):
+    await cb.message.edit(f"👥 Users: {len(users)}")
+
+@app.on_callback_query(filters.regex("restart"))
+async def restart(client, cb):
+    await cb.message.edit("♻️ Restarting...")
+    os.system("kill 1")
+
+# ====== RUN ======
+print("Bot started")
 app.run()
