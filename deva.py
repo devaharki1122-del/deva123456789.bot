@@ -13,12 +13,37 @@ from telegram.ext import (
 )
 
 # ================= ⚙️ ڕێکخستن =================
-BOT_TOKEN = "8251863494:AAGfxsXmvNbGAJXvz0d4_mOceMCVDvFqpTs"
+BOT_TOKEN = "8251863494:AAHYWiOWvgq2q2_x4HlZqGf5YRhaX3XpgcU"
 OWNER_ID = 8186735286
+
+FORCE_CHANNEL_1 = "@chanaly_boot"
+FORCE_CHANNEL_2 = "@team_988"
 
 USERS = set()
 DOWNLOADS = 0
 START_TIME = time.time()
+
+# ================= 🔒 FORCE JOIN =================
+async def force_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    bot = context.bot
+    try:
+        m1 = await bot.get_chat_member(FORCE_CHANNEL_1, user_id)
+        m2 = await bot.get_chat_member(FORCE_CHANNEL_2, user_id)
+        if m1.status in ["left","kicked"] or m2.status in ["left","kicked"]:
+            raise Exception()
+    except:
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📢 کەناڵی یەکەم 🇭🇺", url=f"https://t.me/{FORCE_CHANNEL_1.replace('@','')}")],
+            [InlineKeyboardButton("📢 کەناڵی دووەم 🇭🇺", url=f"https://t.me/{FORCE_CHANNEL_2.replace('@','')}")],
+            [InlineKeyboardButton("✅ دووبارە پشکنین", callback_data="recheck")]
+        ])
+        if update.message:
+            await update.message.reply_text("🔒 تکایە سەرەتا جۆین بکە بۆ هەردوو کەناڵ 👇", reply_markup=keyboard)
+        else:
+            await update.callback_query.edit_message_text("🔒 تکایە سەرەتا جۆین بکە بۆ هەردوو کەناڵ 👇", reply_markup=keyboard)
+        return False
+    return True
 
 # ================= 🔘 منو =================
 def main_menu():
@@ -40,6 +65,8 @@ def admin_menu():
 
 # ================= /start =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await force_join(update, context):
+        return
     USERS.add(update.effective_user.id)
     await update.message.reply_text(
         "🇭🇺❤️ سڵاو دڵی جوان\n"
@@ -49,7 +76,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # ================= 🎬 داولۆد =================
-EMOJIS = ["🙂","😋","😎","😭","💓","🔥","⚡","😍","🤖","🚀","💚"]
+EMOJIS = ["🙂","😋","😎","😭","💓","🔥","⚡","😍","🤖","🚀","💚","✨","🌍"]
 
 async def animate(msg):
     for _ in range(7):
@@ -76,6 +103,8 @@ async def download_video(update, url):
 
 # ================= 💬 نامە =================
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await force_join(update, context):
+        return
     if update.message.text.startswith("http"):
         await download_video(update, update.message.text)
     else:
@@ -86,39 +115,32 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
 
-    # ==== MAIN ====
-    if q.data == "download":
+    if q.data == "recheck":
+        await start(update, context)
+
+    elif q.data == "download":
         await q.edit_message_text("⬇️🇭🇺 لینک بنێرە بۆ داولۆد")
 
     elif q.data == "info":
         await q.edit_message_text(
-            "🤖✨ زانیاری بوت\n"
-            "سڵاو دڵی جوان 💚\n"
-            "من بوتێکی زیرەک و خێرام، دروستکراوم بۆ ئاسانکردنی ژیانت 😌🚀\n\n"
-            "⬇️ چی دەتوانم بکەم؟\n"
-            "• ڤیدیۆ دابەزینم لە چەند شوێنێکەوە 🌍\n"
-            "(YouTube, TikTok, Instagram, Facebook, Twitter, Reddit …)\n"
-            "• دەتوانم لە هەموو شوێنێک ڤیدیۆ دابەزینم 📥✨\n\n"
+            "🤖✨ زانیاری بوت\n\n"
+            "ڤیدیۆ دابەزینم لە چەند شوێنێکەوە 🌍\n"
+            "دەتوانم لە هەموو شوێنێک ڤیدیۆ دابەزینم 📥✨\n\n"
             "❌ ناتوانم ئەمانە بکەم:\n"
             "– ڤیدیۆی تایبە 🔒\n"
             "– ستۆری Snapchat 👻\n"
             "– ستۆری تایبەی هەر پلاتفۆرمێک\n\n"
-            "ئەمە بۆ پاراستنی یاسا و ئاسایشە ⚖️💚\n"
-            "چونکە خاوەنی بوت @Deva_harki ئاگەدار کراوەتەوە 🚨\n\n"
-            "👉 تەنها ئەمانە ناتوانم بکەم، هەموو شتی تر بە دڵی خۆش دەکەم 😌❤️\n\n"
-            "• وێنەش دابەزینم 🖼️🌍\n"
-            "• لایک ❤️ ڤیوو 👁 کۆمێنت 💬 شێر 🔁\n"
-            "• کوالێتی بەرز 🎬✨\n"
-            "• خێرا و پاک ⚡\n"
-            "• هەموو شت بە دووگمە 👇\n\n"
-            "🧠 وەک AI زیرەکم، قسە دەکەم و تێدەگەم ❤️🙂\n"
-            "هەر شتێکت پێویست بێت، من لێرەم 🤖💚\n\n"
-            "🔐 بوت پارێزراوە و ئاسایش‌دارە\n"
-            "👑 خاوەن بوت هەمیشە چاودێری کارەکان دەکات 💚✨",
+            "ئەمە ناکەم چونکە خاوەنی بوت\n"
+            "@Deva_harki ئاگەدار کراوەتەوە لەلایەن حوکمەتەوە 🚨\n"
+            "تاوەکو توشی کاری نایاسایی نەبێت ⚖️💚\n\n"
+            "👉 تەنها ئەمانە ناتوانم بکەم 😌❤️\n\n"
+            "🖼️ دەتوانم وێنەش دابەزینم لە هەموو شوێنێک 🌍\n"
+            "❤️ لایک | 👁 ڤیوو | 💬 کۆمێنت | 🔁 شێر\n"
+            "🎬 کوالێتی بەرز | ⚡ خێرا | 🤖 زیرەک\n\n"
+            "هەر شتێکت پێویست بێت، من لێرەم 🤖💚✨",
             reply_markup=main_menu()
         )
 
-    # ==== ADMIN ====
     elif q.data == "admin":
         if q.from_user.id != OWNER_ID:
             await q.edit_message_text("❌🇭🇺 تۆ ئەدمین نیت")
