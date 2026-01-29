@@ -1,135 +1,198 @@
-import os
-import yt_dlp
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
+# ===========================
+#    + AI (100% )
+#   – deva.py
+# ===========================
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+import os, time
+import yt_dlp
+from openai import OpenAI
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler,
+    CallbackQueryHandler, filters, ContextTypes
+)
+
+# ==================  ==================
+BOT_TOKEN = "8251863494:AAHLJgGgXvK4ZRkzELq3lWVPS7U7Jb4jsLU"
+OPENAI_API_KEY = "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"
 OWNER_ID = 8186735286
 
-SOURCE_CHANNELS = [
-    {"title": "Channel 1", "link": "https://t.me/chanaly_boot", "id": -1002101234567},
-    {"title": "Channel 2", "link": "https://t.me/team_988", "id": -1002101234568}
+CHANNELS = [
+    {"title": "  ", "link": "https://t.me/chanaly_boot", "id": -1002101234567},
+    {"title": "  ", "link": "https://t.me/team_988", "id": -1002101234568},
 ]
 
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+START_TIME = time.time()
 USERS = set()
 DOWNLOADS = 0
+WAITING_LINK = set()
+AI_USERS = set()
 
-# ================= FORCE JOIN =================
-async def check_join(update, context):
-    user_id = update.effective_user.id
-    if user_id == OWNER_ID:
+# ==================  ==================
+def ():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("  ", callback_data="download")],
+        [InlineKeyboardButton("   AI", callback_data="ai")],
+        [InlineKeyboardButton("  ", callback_data="info")],
+        [InlineKeyboardButton("  ", callback_data="admin")]
+    ])
+
+def ai_menu():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("   ", callback_data="download")],
+        [InlineKeyboardButton("   ", callback_data="back")]
+    ])
+
+# ==================   ==================
+async def _(update, context):
+    uid = update.effective_user.id
+    if uid == OWNER_ID:
         return True
-    for ch in SOURCE_CHANNELS:
+    for ch in CHANNELS:
         try:
-            m = await context.bot.get_chat_member(ch["id"], user_id)
+            m = await context.bot.get_chat_member(ch["id"], uid)
             if m.status in ["left", "kicked"]:
                 return False
         except:
             return False
     return True
 
-async def join_msg(update):
-    buttons = [[InlineKeyboardButton(c["title"], url=c["link"])] for c in SOURCE_CHANNELS]
-    buttons.append([InlineKeyboardButton("  ", callback_data="check")])
+async def _(update):
+    kb = [[InlineKeyboardButton(c["title"], url=c["link"])] for c in CHANNELS]
+    kb.append([InlineKeyboardButton("  ", callback_data="recheck")])
     await update.message.reply_text(
-        "   :",
-        reply_markup=InlineKeyboardMarkup(buttons)
+        "       ",
+        reply_markup=InlineKeyboardMarkup(kb)
     )
 
-# ================= START =================
+# ================== AI ==================
+async def _ai(text):
+    r = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "         "},
+            {"role": "user", "content": text}
+        ]
+    )
+    return r.choices[0].message.content
+
+# ================== /start ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await check_join(update, context):
-        await join_msg(update)
+    if not await _(update, context):
+        await _(update)
         return
 
     USERS.add(update.effective_user.id)
+    await update.message.reply_text(
+        "   \n"
+        "    \n\n"
+        "     AI\n"
+        "     \n"
+        "     ( /  / )\n\n"
+        "    ",
+        reply_markup=()
+    )
 
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton(" ", callback_data="download")],
-        [InlineKeyboardButton("  ", callback_data="admin")]
-    ])
-
-    await update.message.reply_text(" !\n  ", reply_markup=kb)
-
-# ================= DOWNLOAD =================
-async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ==================  ==================
+async def (update: Update, context):
     global DOWNLOADS
-    if not await check_join(update, context):
-        await join_msg(update)
+    uid = update.effective_user.id
+    text = update.message.text
+
+    #  AI 
+    if uid in AI_USERS:
+        msg = await update.message.reply_text("  ...")
+        reply = await _ai(text)
+        await msg.edit_text(reply, reply_markup=ai_menu())
         return
 
-    url = update.message.text.strip()
-    msg = await update.message.reply_text(" ...")
+    #  
+    if uid in WAITING_LINK:
+        WAITING_LINK.remove(uid)
+        msg = await update.message.reply_text(" ...")
 
-    ydl_opts = {
-        'format': 'best',
-        'outtmpl': '/tmp/%(id)s.%(ext)s',
-        'quiet': True
-    }
+        try:
+            ydl_opts = {
+                'format': 'best',
+                'outtmpl': '/tmp/%(id)s.%(ext)s',
+                'quiet': True
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(text, download=True)
+                file = ydl.prepare_filename(info)
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            file_path = ydl.prepare_filename(info)
+            size = os.path.getsize(file)
+            DOWNLOADS += 1
 
-        size = os.path.getsize(file_path)
-        DOWNLOADS += 1
-
-        stats = f"""
+            caption = f"""
  {info.get('title')}
- View: {info.get('view_count',0)}
- Like: {info.get('like_count',0)}
- Comment: {info.get('comment_count',0)}
- Share: {info.get('repost_count',0)}
- Size: {size//1024//1024}MB
+ : {info.get('view_count',0)}
+ : {info.get('like_count',0)}
+ : {info.get('comment_count',0)}
+ : {size//1024//1024} MB
 """
 
-        if size > 2*1024*1024*1024:
-            await msg.edit_text("   2GB\n\n " + url)
-        else:
-            await update.message.reply_video(video=open(file_path, "rb"), caption=stats)
+            if size <= 2*1024*1024*1024:
+                await update.message.reply_video(video=open(file,'rb'), caption=caption)
+            else:
+                await update.message.reply_text("    (  2GB)")
+
+            os.remove(file)
             await msg.delete()
 
-        os.remove(file_path)
+        except Exception as e:
+            await msg.edit_text(f" : {e}")
 
-    except Exception as e:
-        await msg.edit_text(f" : {e}")
-
-# ================= ADMIN PANEL =================
-async def admin_panel(update: Update, context):
-    if update.effective_user.id != OWNER_ID:
-        return
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton(" Users", callback_data="users")],
-        [InlineKeyboardButton(" Downloads", callback_data="downloads")]
-    ])
-    await update.callback_query.edit_message_text(" Admin Panel", reply_markup=kb)
-
-async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ==================  ==================
+async def (update: Update, context):
     q = update.callback_query
     await q.answer()
+    uid = q.from_user.id
 
-    if q.data == "check":
-        if await check_join(update, context):
-            await q.edit_message_text(" !   ")
+    if q.data == "recheck":
+        if await _(update, context):
+            await q.edit_message_text("   ", reply_markup=())
         else:
-            await join_msg(update)
+            await _(update)
 
-    elif q.data == "admin":
-        await admin_panel(update, context)
+    elif q.data == "download":
+        AI_USERS.discard(uid)
+        WAITING_LINK.add(uid)
+        await q.edit_message_text("     ", reply_markup=())
 
-    elif q.data == "users":
-        await q.edit_message_text(f" Users: {len(USERS)}")
+    elif q.data == "ai":
+        WAITING_LINK.discard(uid)
+        AI_USERS.add(uid)
+        await q.edit_message_text(
+            "  AI  !\n   ",
+            reply_markup=ai_menu()
+        )
 
-    elif q.data == "downloads":
-        await q.edit_message_text(f" Downloads: {DOWNLOADS}")
+    elif q.data == "back":
+        AI_USERS.discard(uid)
+        await q.edit_message_text("   ", reply_markup=())
 
-# ================= MAIN =================
+    elif q.data == "info":
+        uptime = int(time.time() - START_TIME)
+        await q.edit_message_text(
+            f"  \n : {uptime} \n : {len(USERS)}\n : {DOWNLOADS}",
+            reply_markup=()
+        )
+
+    elif q.data == "admin" and uid == OWNER_ID:
+        await q.edit_message_text(
+            f"  \n : {len(USERS)}\n : {DOWNLOADS}",
+            reply_markup=()
+        )
+
+# ================== MAIN ==================
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
-    app.add_handler(CallbackQueryHandler(buttons))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ))
+    app.add_handler(CallbackQueryHandler())
     app.run_polling()
 
 if __name__ == "__main__":
