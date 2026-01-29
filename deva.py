@@ -13,7 +13,7 @@ from telegram.ext import (
 )
 
 # ================= ⚙️ ڕێکخستن =================
-BOT_TOKEN = "PUT_YOUR_TOKEN_HERE"
+BOT_TOKEN = "8251863494:AAGfxsXmvNbGAJXvz0d4_mOceMCVDvFqpTs"
 OWNER_ID = 8186735286
 
 USERS = set()
