@@ -17,7 +17,7 @@ from telegram.ext import (
 
 # ==================   ==================
 FLAG = ""
-BOT_TOKEN = "8251863494:AAHLJgGgXvK4ZRkzELq3lWVPS7U7Jb4jsLU"
+BOT_TOKEN = "8251863494:AAEidcnmGJNL57QVloWTJdLSpkx2zZQ6bjg"
 OPENAI_API_KEY = "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"
 OWNER_ID = 8186735286
 
