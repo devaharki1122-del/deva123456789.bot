@@ -12,14 +12,16 @@ from telegram.ext import (
     CallbackQueryHandler, ContextTypes, filters
 )
 
-BOT_TOKEN = "8251863494:AAFogo6UrhBzeqUP1IuSAJ_Nfxerra7Pal0"
+# ================= ⚙️ ڕێکخستن =================
+BOT_TOKEN = "8251863494:AAH7-S-2hgTX3uh0yblD2kOYRO_el5TKGSY"
 OWNER_ID = 8186735286
-FORCE_JOIN_CHANNELS = ["@team_988", "@channel2"]
+FORCE_JOIN_CHANNELS = ["@chanaly_boot", "@team_988"]
 
 USERS = set()
 DOWNLOADS = 0
 START_TIME = time.time()
 
+# ================= 🔘 منو =================
 def main_menu():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("⬇️🇭🇺 داولۆد", callback_data="download")],
@@ -37,6 +39,7 @@ def admin_menu():
         [InlineKeyboardButton("🔙🇭🇺 گەڕانەوە", callback_data="back")]
     ])
 
+# ================= 🔒 FORCE JOIN =================
 async def check_force_join(update, context):
     uid = update.effective_user.id
     for ch in FORCE_JOIN_CHANNELS:
@@ -48,18 +51,30 @@ async def check_force_join(update, context):
             return False
     return True
 
+def force_join_buttons():
+    btns = [[InlineKeyboardButton("🔔 جوین", url=f"https://t.me/{c.replace('@','')}")] for c in FORCE_JOIN_CHANNELS]
+    btns.append([InlineKeyboardButton("✅ پشکنین", callback_data="check_join")])
+    return InlineKeyboardMarkup(btns)
+
+# ================= /start =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_force_join(update, context):
-        btns = [[InlineKeyboardButton("🔔 جوین", url=f"https://t.me/{c.replace('@','')}")] for c in FORCE_JOIN_CHANNELS]
-        await update.message.reply_text("🔒 تکایە جوینی جەناڵەکان بکە", reply_markup=InlineKeyboardMarkup(btns))
+        await update.message.reply_text(
+            "🔒 تکایە سەرەتا جوینی جەناڵەکان بکە\n"
+            "پاشان کرتە لە (پشکنین) بکە ✅",
+            reply_markup=force_join_buttons()
+        )
         return
 
     USERS.add(update.effective_user.id)
     await update.message.reply_text(
-        "🇭🇺❤️ سڵاو دڵی جوان\nمن بوتی داولۆدی زیرەکم 🤖\nدووگمە هەڵبژێرە 👇",
+        "🇭🇺❤️ سڵاو دڵی جوان\n"
+        "من بوتی داولۆدی زیرەکم 🤖⚡\n"
+        "تەنها لینک بنێرە و من هەموو شتێک بۆت دابەزینم 😌👇",
         reply_markup=main_menu()
     )
 
+# ================= 🎬 داولۆد =================
 EMOJIS = ["🙂","😋","😎","😭","💓","🔥","⚡","😍","🤖","🚀","💚"]
 
 async def animate(msg):
@@ -93,9 +108,10 @@ async def download_video(update, url):
     except Exception as e:
         await msg.edit_text(f"❌ هەڵە: {e}")
 
+# ================= 💬 نامە =================
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_force_join(update, context):
-        await update.message.reply_text("🔒 تکایە جوین بکە")
+        await update.message.reply_text("🔒 تکایە جوین بکە", reply_markup=force_join_buttons())
         return
 
     if update.message.text.startswith("http"):
@@ -103,37 +119,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("🔗 تکایە لینک بنێرە")
 
+# ================= 🔘 Callback =================
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
 
-    if q.data == "download":
+    if q.data == "check_join":
+        if await check_force_join(update, context):
+            await q.edit_message_text("✅ سوپاس! ئێستا دەتوانیت بوت بەکاربهێنیت", reply_markup=main_menu())
+        else:
+            await q.edit_message_text("❌ هێشتا جوین نەکراوە", reply_markup=force_join_buttons())
+
+    elif q.data == "download":
         await q.edit_message_text("⬇️ لینک بنێرە")
 
     elif q.data == "info":
         await q.edit_message_text(
-            "🤖✨ زانیاری بوت سڵاو دڵی جوان 💚\n\n"
-            "من بوتێکی زیرەک و خێرام 🤖⚡\n"
-            "دروستکراوم بۆ ئاسانکردنی ژیانت 😌🚀\n\n"
-            "⬇️ دەتوانم چی بکەم؟\n"
-            "• دەتوانم لە هەموو شوێنێک ڤیدیۆ دابەزینم 🌍📥\n\n"
-            "❌ بەڵام ناتوانم:\n"
+            "🤖💚 سڵاو دڵی جوان\n\n"
+            "من ئەو بوتەم کە خۆت دەویست 😌\n"
+            "• لە هەموو شوێنێک ڤیدیۆ دابەزینم 🌍\n"
+            "• خێرا و پاک ⚡\n"
+            "• تا 2GB دابەزینم 📦\n"
+            "• وێنەش دابەزینم 🖼️\n\n"
+            "❌ تەنها ئەمانە ناکەم:\n"
             "• ڤیدیۆی تایبە 🔒\n"
-            "• ستۆری Snapchat 👻\n"
-            "• ستۆری تایبەی هەر پلاتفۆرمێک\n\n"
-            "ئەمە بۆ پاراستنی یاسا و ئاسایشە ⚖️💚\n"
-            "چونکە خاوەنی بوت کاک @Deva_harki\n"
-            "ئاگەدار کراوەتەوە لەلایەن حوکمەت 🚨\n"
-            "تاوەکو توشی هیچ کاری نایاسایی نەبێت 🙏✨\n\n"
-            "👉 تەنها ئەمانە ناتوانم بکەم، هەموو شتی تر بە دڵی خۆش دەکەم 😌❤️\n\n"
-            "• دەتوانم وێنەش دابەزینم 🖼️🌍\n"
-            "• لایک ❤️ ڤیوو 👁 کۆمێنت 💬 شێر 🔁\n"
-            "• کوالێتی بەرز 🎬✨\n"
-            "• خێرا و پاک ⚡\n\n"
-            "🧠 من وەک AI زیرەکم، تێدەگەم و قسە دەکەم ❤️🙂\n"
-            "هەر شتێکت پێویست بێت، من لێرەم 🤖💚\n\n"
-            "🔐 بوت پارێزراوە و ئاسایش‌دارە\n"
-            "👑 خاوەن بوت هەمیشە چاودێری کارەکان دەکات 💚✨",
+            "• ستۆری Snapchat 👻\n\n"
+            "هەموو ئەمانە بۆ ئاسایش و پاراستنە 💚\n"
+            "خاوەنی بوت: @Deva_harki 👑\n\n"
+            "من لێرەم بۆ خزمەتگوزاری تۆ 🤖❤️",
             reply_markup=main_menu()
         )
 
@@ -163,6 +176,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif q.data == "back":
         await q.edit_message_text("🏠 منو", reply_markup=main_menu())
 
+# ================= 🚀 MAIN =================
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
