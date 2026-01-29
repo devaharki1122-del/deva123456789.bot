@@ -8,8 +8,8 @@ TOKEN = "8251863494:AAGfxsXmvNbGAJXvz0d4_mOceMCVDvFqpTs"
 ADMIN_ID = 8186735286
 OWNER = "@Deva_harki"
 
-CHANNEL_1 = "@channel1"
-CHANNEL_2 = "@channel2"
+CHANNEL_1 = "@team_988"
+CHANNEL_2 = "@chanaly_boot"
 
 bot = telebot.TeleBot(TOKEN)
 
