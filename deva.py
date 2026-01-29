@@ -20,8 +20,8 @@ BOT_TOKEN = "8251863494:AAERsUmTD3GgfeEAkHNsHMd2g-ded4XWT5w"
 OWNER_ID = 8186735286
 
 CHANNELS = [
-    {"title": f"{FLAG} چەنال یەکەم", "link": "https://t.me/chanal1", "id": -1001111111111},
-    {"title": f"{FLAG} چەنال دووەم", "link": "https://t.me/chanal2", "id": -1002222222222},
+    {"title": f"{FLAG} چەنال یەکەم", "link": "https://t.me/chanaly_boot", "id": -1001111111111},
+    {"title": f"{FLAG} چەنال دووەم", "link": "https://t.me/team_988", "id": -1002222222222},
 ]
 
 USERS = set()
