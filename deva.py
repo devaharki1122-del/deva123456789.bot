@@ -1,25 +1,31 @@
-# ===========================
-#    + AI (100% )
+# -*- coding: utf-8 -*-
+# =========================================
+#    (AI + Download)
 #   – deva.py
-# ===========================
+# AI  Download  |   
+# 100%  | Emoji | Railway Ready
+# =========================================
 
 import os, time
 import yt_dlp
 from openai import OpenAI
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update, InlineKeyboardButton, InlineKeyboardMarkup
+)
 from telegram.ext import (
-    Application, CommandHandler, MessageHandler,
-    CallbackQueryHandler, filters, ContextTypes
+    Application, CommandHandler, CallbackQueryHandler,
+    MessageHandler, ContextTypes, filters
 )
 
-# ==================  ==================
+# ==================   ==================
+FLAG = ""
 BOT_TOKEN = "8251863494:AAHLJgGgXvK4ZRkzELq3lWVPS7U7Jb4jsLU"
 OPENAI_API_KEY = "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"
 OWNER_ID = 8186735286
 
 CHANNELS = [
-    {"title": "  ", "link": "https://t.me/chanaly_boot", "id": -1002101234567},
-    {"title": "  ", "link": "https://t.me/team_988", "id": -1002101234568},
+    {"title": f"{FLAG}  ", "link": "https://t.me/chanaly_boot", "id": -1002101234567},
+    {"title": f"{FLAG}  ", "link": "https://t.me/team_988", "id": -1002101234568},
 ]
 
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -27,26 +33,39 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 START_TIME = time.time()
 USERS = set()
 DOWNLOADS = 0
-WAITING_LINK = set()
-AI_USERS = set()
 
-# ==================  ==================
-def ():
+MODE_AI = set()
+MODE_DOWNLOAD = set()
+
+# ==================  AI  ==================
+async def ai_reply(text):
+    res = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": " AI           "
+            },
+            {"role": "user", "content": text}
+        ]
+    )
+    return res.choices[0].message.content
+
+# ==================   ==================
+def main_menu():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("  ", callback_data="download")],
-        [InlineKeyboardButton("   AI", callback_data="ai")],
-        [InlineKeyboardButton("  ", callback_data="info")],
-        [InlineKeyboardButton("  ", callback_data="admin")]
+        [InlineKeyboardButton(f"{FLAG} AI ", callback_data="ai")],
+        [InlineKeyboardButton(f"{FLAG}  ", callback_data="download")],
+        [InlineKeyboardButton(f"{FLAG}  ", callback_data="info")]
     ])
 
-def ai_menu():
+def back_menu():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("   ", callback_data="download")],
-        [InlineKeyboardButton("   ", callback_data="back")]
+        [InlineKeyboardButton(f"{FLAG}   ", callback_data="back")]
     ])
 
-# ==================   ==================
-async def _(update, context):
+# ==================  Force Join ==================
+async def check_join(update, context):
     uid = update.effective_user.id
     if uid == OWNER_ID:
         return True
@@ -59,65 +78,53 @@ async def _(update, context):
             return False
     return True
 
-async def _(update):
+async def join_message(update):
     kb = [[InlineKeyboardButton(c["title"], url=c["link"])] for c in CHANNELS]
-    kb.append([InlineKeyboardButton("  ", callback_data="recheck")])
+    kb.append([InlineKeyboardButton(f"{FLAG}  ", callback_data="recheck")])
     await update.message.reply_text(
-        "       ",
+        f"{FLAG}        ",
         reply_markup=InlineKeyboardMarkup(kb)
     )
 
-# ================== AI ==================
-async def _ai(text):
-    r = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "         "},
-            {"role": "user", "content": text}
-        ]
-    )
-    return r.choices[0].message.content
-
 # ================== /start ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await _(update, context):
-        await _(update)
+    if not await check_join(update, context):
+        await join_message(update)
         return
 
     USERS.add(update.effective_user.id)
     await update.message.reply_text(
-        "   \n"
-        "    \n\n"
-        "     AI\n"
-        "     \n"
-        "     ( /  / )\n\n"
-        "    ",
-        reply_markup=()
+        f"{FLAG}   \n\n"
+        f"{FLAG}  :\n"
+        f"•    (TikTok, YT, Insta, FB...)\n"
+        f"• AI   \n\n"
+        f"{FLAG}    ",
+        reply_markup=main_menu()
     )
 
-# ==================  ==================
-async def (update: Update, context):
+# ==================   ==================
+async def handle_message(update: Update, context):
     global DOWNLOADS
     uid = update.effective_user.id
     text = update.message.text
 
-    #  AI 
-    if uid in AI_USERS:
-        msg = await update.message.reply_text("  ...")
-        reply = await _ai(text)
-        await msg.edit_text(reply, reply_markup=ai_menu())
+    #  AI MODE
+    if uid in MODE_AI:
+        reply = await ai_reply(text)
+        await update.message.reply_text(reply, reply_markup=back_menu())
         return
 
-    #  
-    if uid in WAITING_LINK:
-        WAITING_LINK.remove(uid)
-        msg = await update.message.reply_text(" ...")
+    #  DOWNLOAD MODE
+    if uid in MODE_DOWNLOAD:
+        MODE_DOWNLOAD.remove(uid)
+        msg = await update.message.reply_text(f"{FLAG}   ...")
 
         try:
             ydl_opts = {
                 'format': 'best',
                 'outtmpl': '/tmp/%(id)s.%(ext)s',
-                'quiet': True
+                'quiet': True,
+                'noplaylist': True
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(text, download=True)
@@ -126,73 +133,78 @@ async def (update: Update, context):
             size = os.path.getsize(file)
             DOWNLOADS += 1
 
-            caption = f"""
- {info.get('title')}
- : {info.get('view_count',0)}
- : {info.get('like_count',0)}
- : {info.get('comment_count',0)}
- : {size//1024//1024} MB
-"""
+            caption = (
+                f"{FLAG} {info.get('title')}\n"
+                f"{FLAG} {info.get('view_count',0)}\n"
+                f"{FLAG} {info.get('like_count',0)}\n"
+                f"{FLAG} {info.get('comment_count',0)}\n"
+                f"{FLAG} {size//1024//1024} MB"
+            )
 
-            if size <= 2*1024*1024*1024:
-                await update.message.reply_video(video=open(file,'rb'), caption=caption)
+            if size <= 2 * 1024 * 1024 * 1024:
+                await update.message.reply_video(video=open(file, "rb"), caption=caption)
             else:
-                await update.message.reply_text("    (  2GB)")
+                await update.message.reply_text(f"{FLAG}   ")
 
             os.remove(file)
             await msg.delete()
 
         except Exception as e:
-            await msg.edit_text(f" : {e}")
+            await msg.edit_text(f"{FLAG} : {e}")
 
-# ==================  ==================
-async def (update: Update, context):
+# ==================  Callback ==================
+async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
     uid = q.from_user.id
 
     if q.data == "recheck":
-        if await _(update, context):
-            await q.edit_message_text("   ", reply_markup=())
+        if await check_join(update, context):
+            await q.edit_message_text(f"{FLAG}   ", reply_markup=main_menu())
         else:
-            await _(update)
-
-    elif q.data == "download":
-        AI_USERS.discard(uid)
-        WAITING_LINK.add(uid)
-        await q.edit_message_text("     ", reply_markup=())
+            await join_message(update)
 
     elif q.data == "ai":
-        WAITING_LINK.discard(uid)
-        AI_USERS.add(uid)
+        MODE_DOWNLOAD.discard(uid)
+        MODE_AI.add(uid)
         await q.edit_message_text(
-            "  AI  !\n   ",
-            reply_markup=ai_menu()
+            f"{FLAG}  AI  \n  ",
+            reply_markup=back_menu()
+        )
+
+    elif q.data == "download":
+        MODE_AI.discard(uid)
+        MODE_DOWNLOAD.add(uid)
+        await q.edit_message_text(
+            f"{FLAG}    ",
+            reply_markup=back_menu()
         )
 
     elif q.data == "back":
-        AI_USERS.discard(uid)
-        await q.edit_message_text("   ", reply_markup=())
+        MODE_AI.discard(uid)
+        MODE_DOWNLOAD.discard(uid)
+        await q.edit_message_text(
+            f"{FLAG} ",
+            reply_markup=main_menu()
+        )
 
     elif q.data == "info":
         uptime = int(time.time() - START_TIME)
         await q.edit_message_text(
-            f"  \n : {uptime} \n : {len(USERS)}\n : {DOWNLOADS}",
-            reply_markup=()
+            f"{FLAG}  \n"
+            f"{FLAG} : {uptime} \n"
+            f"{FLAG} : {len(USERS)}\n"
+            f"{FLAG} : {DOWNLOADS}",
+            reply_markup=main_menu()
         )
 
-    elif q.data == "admin" and uid == OWNER_ID:
-        await q.edit_message_text(
-            f"  \n : {len(USERS)}\n : {DOWNLOADS}",
-            reply_markup=()
-        )
-
-# ================== MAIN ==================
+# ==================  MAIN ==================
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, ))
-    app.add_handler(CallbackQueryHandler())
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CallbackQueryHandler(buttons))
+    print(" Bot is running...")
     app.run_polling()
 
 if __name__ == "__main__":
