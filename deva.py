@@ -4,8 +4,7 @@
 # دروستکراوە لەلایەن @Deva_harki
 # =========================================
 
-import os, time, asyncio, random, sys
-import yt_dlp
+import os, time, asyncio, random, sys, uuid, requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
@@ -13,7 +12,7 @@ from telegram.ext import (
 )
 
 # ================= ⚙️ ڕێکخستن =================
-BOT_TOKEN = "8251863494:AAEpF0YDGTxV3JVn7VCJGUb8_1n_HzUUqhM"
+BOT_TOKEN = "8251863494:AAGw6ZJ4Fd_a0rhbxQMby-f99IeQjClu_DU"
 OWNER_ID = 8186735286
 FORCE_JOIN_CHANNELS = ["@team_988", "@chanaly_boot"]
 
@@ -24,20 +23,19 @@ START_TIME = time.time()
 # ================= 🔘 منو =================
 def main_menu():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("⬇️🇭🇺 داولۆد", callback_data="download")],
-        [InlineKeyboardButton("ℹ️🇭🇺 زانیاری بوت", callback_data="info")],
-        [InlineKeyboardButton("🛠🇭🇺 ئەدمین پانیل", callback_data="admin")],
-        [InlineKeyboardButton("📩🇭🇺 نامە بۆ خاوەن بوت", url="https://t.me/Deva_harki")]
+        [InlineKeyboardButton("⬇️ داولۆد", callback_data="download")],
+        [InlineKeyboardButton("ℹ️ زانیاری بوت", callback_data="info")],
+        [InlineKeyboardButton("🛠 ئەدمین پانیل", callback_data="admin")],
+        [InlineKeyboardButton("📩 نامە بۆ خاوەن بوت", url="https://t.me/Deva_harki")]
     ])
 
-# ================= 🛠 ADMIN PANEL =================
 def admin_menu():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("👥🇭🇺 ژمارەی بەکارهێنەر", callback_data="admin_users")],
-        [InlineKeyboardButton("⬇️🇭🇺 ژمارەی داولۆد", callback_data="admin_downloads")],
-        [InlineKeyboardButton("⏱🇭🇺 ماوەی کارکردن", callback_data="admin_uptime")],
-        [InlineKeyboardButton("🔄🇭🇺 نوی‌کردنەوەی بوت", callback_data="admin_restart")],
-        [InlineKeyboardButton("🔙🇭🇺 گەڕانەوە", callback_data="back")]
+        [InlineKeyboardButton("👥 ژمارەی بەکارهێنەر", callback_data="admin_users")],
+        [InlineKeyboardButton("⬇️ ژمارەی داولۆد", callback_data="admin_downloads")],
+        [InlineKeyboardButton("⏱ ماوەی کارکردن", callback_data="admin_uptime")],
+        [InlineKeyboardButton("🔄 نوێکردنەوەی بوت", callback_data="admin_restart")],
+        [InlineKeyboardButton("🔙 گەڕانەوە", callback_data="back")]
     ])
 
 # ================= 🔒 FORCE JOIN =================
@@ -56,17 +54,12 @@ async def check_force_join(update, context):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_force_join(update, context):
         btns = [[InlineKeyboardButton("🔔 جوین", url=f"https://t.me/{c.replace('@','')}")] for c in FORCE_JOIN_CHANNELS]
-        await update.message.reply_text(
-            "🔒 تکایە سەرەتا جوینی جەناڵەکان بکە",
-            reply_markup=InlineKeyboardMarkup(btns)
-        )
+        await update.message.reply_text("🔒 تکایە جوینی جەناڵەکان بکە", reply_markup=InlineKeyboardMarkup(btns))
         return
 
     USERS.add(update.effective_user.id)
     await update.message.reply_text(
-        "🇭🇺❤️ سڵاو دڵی جوان\n"
-        "من بوتی داولۆدی زیرەکم 🤖\n"
-        "دووگمە هەڵبژێرە 👇",
+        "🇭🇺❤️ سڵاو دڵی جوان\nمن بوتی داولۆدی زیرەکم 🤖\nدووگمە هەڵبژێرە 👇",
         reply_markup=main_menu()
     )
 
@@ -75,55 +68,44 @@ EMOJIS = ["🙂","😋","😎","😭","💓","🔥","⚡","😍","🤖","🚀","
 
 async def animate(msg):
     for _ in range(3):
-        await msg.edit_text(f"⬇️🇭🇺 داولۆد دەستپێکرا {random.choice(EMOJIS)}")
+        await msg.edit_text(f"⬇️ داولۆد دەستپێکرا {random.choice(EMOJIS)}")
         await asyncio.sleep(1)
 
+# ================= ✅ TikTok Downloader (NO DLP) =================
 async def download_video(update, url):
     global DOWNLOADS
-    msg = await update.message.reply_text("⬇️🇭🇺 داولۆد دەستپێکرا 🙂")
+    msg = await update.message.reply_text("⬇️ داولۆد دەستپێکرا ⚡")
     await animate(msg)
 
-    ydl_opts = {
-        "format": "bestvideo+bestaudio/best",
-        "outtmpl": "/tmp/%(id)s.%(ext)s",
-        "merge_output_format": "mp4",
-        "concurrent_fragment_downloads": 8,
-        "retries": 3,
-        "quiet": True,
-        "no_warnings": True,
-        "ignoreerrors": True,
-        "geo_bypass": True,
-        "nocheckcertificate": True,
-        "age_limit": 99,
-        "http_chunk_size": 10485760,  # ⚡ خێرای زیاتر
-    }
+    try:
+        api = "https://www.tikwm.com/api/"
+        r = requests.post(api, data={"url": url}, timeout=20)
+        data = r.json()
 
-    for _ in range(3):
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                if not info:
-                    continue
-                file = ydl.prepare_filename(info)
-
-            await update.message.reply_video(
-                open(file, "rb"),
-                supports_streaming=True
-            )
-
-            DOWNLOADS += 1
-            os.remove(file)
-            await msg.delete()
+        if not data.get("data"):
+            await msg.edit_text("❌ نەتوانرا ڤیدیۆ داولۆد بکرێت")
             return
-        except:
-            await asyncio.sleep(1)
 
-    await msg.edit_text(
-        "⚠️ ببورە دڵی جوان 💚\n\n"
-        "ئەم ڤیدیۆیە پارێزراوە یان تایبەتیە 🚫\n\n"
-        "🔓 تکایە ڤیدیۆی ئاسایی بنێرە\n"
-        "من هەموو ئەوانەی تر دابەزینم 😌✨"
-    )
+        video_url = data["data"]["play"]
+        file_path = f"/tmp/{uuid.uuid4()}.mp4"
+
+        with requests.get(video_url, stream=True, timeout=60) as v:
+            with open(file_path, "wb") as f:
+                for chunk in v.iter_content(chunk_size=1024*1024):
+                    if chunk:
+                        f.write(chunk)
+
+        await update.message.reply_video(
+            open(file_path, "rb"),
+            supports_streaming=True
+        )
+
+        DOWNLOADS += 1
+        os.remove(file_path)
+        await msg.delete()
+
+    except Exception as e:
+        await msg.edit_text(f"❌ هەڵە: {e}")
 
 # ================= 💬 نامە =================
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -142,23 +124,25 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.answer()
 
     if q.data == "download":
-        await q.edit_message_text("⬇️ لینک بنێرە")
+        await q.edit_message_text("⬇️ تکایە لینک بنێرە")
 
     elif q.data == "info":
         await q.edit_message_text(
             "🤖✨ زانیاری بوت\n\n"
             "سڵاو دڵی جوان 💚\n"
-            "من بوتێکی زیرەک و خێرامم 🤖⚡\n"
+            "من بوتێکی زیرەک و خێرام 🤖⚡\n"
             "دروستکراوم بۆ ئاسانکردنی ژیانت 😌🚀\n\n"
-            "⬇️ دەتوانم:\n"
-            "• لە هەموو شوێنێک ڤیدیۆ دابەزینم 🌍\n"
-            "• تا 2GB داولۆد بکەم 📦\n"
-            "• وێنە دابەزینم 🖼️\n\n"
+            "⬇️ دەتوانم چی بکەم؟\n"
+            "• دەتوانم لە هەموو شوێنێک ڤیدیۆ دابەزینم 🌍📥\n"
+            "• تا 2GB داولۆد دەکەم 📦\n\n"
             "❌ ناتوانم:\n"
             "• ڤیدیۆی تایبە 🔒\n"
             "• ستۆری Snapchat 👻\n\n"
             "ئەمە بۆ پاراستنی یاسا و ئاسایشە ⚖️\n"
-            "👑 خاوەن بوت: @Deva_harki",
+            "چونکە خاوەنی بوت کاک @Deva_harki ئاگەدار کراوەتەوە 🚨\n\n"
+            "• وێنەش دابەزینم 🖼️\n"
+            "• خێرا و پاک ⚡\n\n"
+            "🤖 من لێرەم بۆ تۆ 💚",
             reply_markup=main_menu()
         )
 
