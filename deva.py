@@ -13,9 +13,9 @@ from telegram.ext import (
 )
 
 # ================= ⚙️ ڕێکخستن =================
-BOT_TOKEN = "8251863494:AAH7-S-2hgTX3uh0yblD2kOYRO_el5TKGSY"
+BOT_TOKEN = "8251863494:AAEpF0YDGTxV3JVn7VCJGUb8_1n_HzUUqhM"
 OWNER_ID = 8186735286
-FORCE_JOIN_CHANNELS = ["@chanaly_boot", "@team_988"]
+FORCE_JOIN_CHANNELS = ["@team_988", "@chanaly_boot"]
 
 USERS = set()
 DOWNLOADS = 0
@@ -30,6 +30,7 @@ def main_menu():
         [InlineKeyboardButton("📩🇭🇺 نامە بۆ خاوەن بوت", url="https://t.me/Deva_harki")]
     ])
 
+# ================= 🛠 ADMIN PANEL =================
 def admin_menu():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("👥🇭🇺 ژمارەی بەکارهێنەر", callback_data="admin_users")],
@@ -51,26 +52,21 @@ async def check_force_join(update, context):
             return False
     return True
 
-def force_join_buttons():
-    btns = [[InlineKeyboardButton("🔔 جوین", url=f"https://t.me/{c.replace('@','')}")] for c in FORCE_JOIN_CHANNELS]
-    btns.append([InlineKeyboardButton("✅ پشکنین", callback_data="check_join")])
-    return InlineKeyboardMarkup(btns)
-
 # ================= /start =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_force_join(update, context):
+        btns = [[InlineKeyboardButton("🔔 جوین", url=f"https://t.me/{c.replace('@','')}")] for c in FORCE_JOIN_CHANNELS]
         await update.message.reply_text(
-            "🔒 تکایە سەرەتا جوینی جەناڵەکان بکە\n"
-            "پاشان کرتە لە (پشکنین) بکە ✅",
-            reply_markup=force_join_buttons()
+            "🔒 تکایە سەرەتا جوینی جەناڵەکان بکە",
+            reply_markup=InlineKeyboardMarkup(btns)
         )
         return
 
     USERS.add(update.effective_user.id)
     await update.message.reply_text(
         "🇭🇺❤️ سڵاو دڵی جوان\n"
-        "من بوتی داولۆدی زیرەکم 🤖⚡\n"
-        "تەنها لینک بنێرە و من هەموو شتێک بۆت دابەزینم 😌👇",
+        "من بوتی داولۆدی زیرەکم 🤖\n"
+        "دووگمە هەڵبژێرە 👇",
         reply_markup=main_menu()
     )
 
@@ -87,31 +83,52 @@ async def download_video(update, url):
     msg = await update.message.reply_text("⬇️🇭🇺 داولۆد دەستپێکرا 🙂")
     await animate(msg)
 
-    try:
-        ydl_opts = {
-            "format": "bestvideo+bestaudio/best",
-            "outtmpl": "/tmp/%(id)s.%(ext)s",
-            "concurrent_fragment_downloads": 8,
-            "retries": 10,
-            "merge_output_format": "mp4",
-            "quiet": True
-        }
+    ydl_opts = {
+        "format": "bestvideo+bestaudio/best",
+        "outtmpl": "/tmp/%(id)s.%(ext)s",
+        "merge_output_format": "mp4",
+        "concurrent_fragment_downloads": 8,
+        "retries": 3,
+        "quiet": True,
+        "no_warnings": True,
+        "ignoreerrors": True,
+        "geo_bypass": True,
+        "nocheckcertificate": True,
+        "age_limit": 99,
+        "http_chunk_size": 10485760,  # ⚡ خێرای زیاتر
+    }
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            file = ydl.prepare_filename(info)
+    for _ in range(3):
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                if not info:
+                    continue
+                file = ydl.prepare_filename(info)
 
-        await update.message.reply_video(open(file, "rb"), supports_streaming=True)
-        DOWNLOADS += 1
-        os.remove(file)
-        await msg.delete()
-    except Exception as e:
-        await msg.edit_text(f"❌ هەڵە: {e}")
+            await update.message.reply_video(
+                open(file, "rb"),
+                supports_streaming=True
+            )
+
+            DOWNLOADS += 1
+            os.remove(file)
+            await msg.delete()
+            return
+        except:
+            await asyncio.sleep(1)
+
+    await msg.edit_text(
+        "⚠️ ببورە دڵی جوان 💚\n\n"
+        "ئەم ڤیدیۆیە پارێزراوە یان تایبەتیە 🚫\n\n"
+        "🔓 تکایە ڤیدیۆی ئاسایی بنێرە\n"
+        "من هەموو ئەوانەی تر دابەزینم 😌✨"
+    )
 
 # ================= 💬 نامە =================
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await check_force_join(update, context):
-        await update.message.reply_text("🔒 تکایە جوین بکە", reply_markup=force_join_buttons())
+        await update.message.reply_text("🔒 تکایە جوین بکە")
         return
 
     if update.message.text.startswith("http"):
@@ -124,29 +141,24 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
 
-    if q.data == "check_join":
-        if await check_force_join(update, context):
-            await q.edit_message_text("✅ سوپاس! ئێستا دەتوانیت بوت بەکاربهێنیت", reply_markup=main_menu())
-        else:
-            await q.edit_message_text("❌ هێشتا جوین نەکراوە", reply_markup=force_join_buttons())
-
-    elif q.data == "download":
+    if q.data == "download":
         await q.edit_message_text("⬇️ لینک بنێرە")
 
     elif q.data == "info":
         await q.edit_message_text(
-            "🤖💚 سڵاو دڵی جوان\n\n"
-            "من ئەو بوتەم کە خۆت دەویست 😌\n"
+            "🤖✨ زانیاری بوت\n\n"
+            "سڵاو دڵی جوان 💚\n"
+            "من بوتێکی زیرەک و خێرامم 🤖⚡\n"
+            "دروستکراوم بۆ ئاسانکردنی ژیانت 😌🚀\n\n"
+            "⬇️ دەتوانم:\n"
             "• لە هەموو شوێنێک ڤیدیۆ دابەزینم 🌍\n"
-            "• خێرا و پاک ⚡\n"
-            "• تا 2GB دابەزینم 📦\n"
-            "• وێنەش دابەزینم 🖼️\n\n"
-            "❌ تەنها ئەمانە ناکەم:\n"
+            "• تا 2GB داولۆد بکەم 📦\n"
+            "• وێنە دابەزینم 🖼️\n\n"
+            "❌ ناتوانم:\n"
             "• ڤیدیۆی تایبە 🔒\n"
             "• ستۆری Snapchat 👻\n\n"
-            "هەموو ئەمانە بۆ ئاسایش و پاراستنە 💚\n"
-            "خاوەنی بوت: @Deva_harki 👑\n\n"
-            "من لێرەم بۆ خزمەتگوزاری تۆ 🤖❤️",
+            "ئەمە بۆ پاراستنی یاسا و ئاسایشە ⚖️\n"
+            "👑 خاوەن بوت: @Deva_harki",
             reply_markup=main_menu()
         )
 
