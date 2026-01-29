@@ -4,8 +4,8 @@ import random
 import yt_dlp
 import os
 
-TOKEN = "TOKEN_LERA_DANێ"
-ADMIN_ID = 123456789
+TOKEN = "8251863494:AAGfxsXmvNbGAJXvz0d4_mOceMCVDvFqpTs"
+ADMIN_ID = 8186735286
 OWNER = "@Deva_harki"
 
 CHANNEL_1 = "@channel1"
