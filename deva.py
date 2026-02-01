@@ -1,107 +1,79 @@
 import os
-import replicate
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+import re
+import asyncio
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import CommandStart
+from yt_dlp import YoutubeDL
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-REPLICATE_API_KEY = os.getenv("REPLICATE_API_KEY")
-ADMIN_ID = 8186735286
+TOKEN = os.getenv("TOKEN")
+CHANNEL_ID = -1001234567890  # 👈 chat id ی جەناڵەکەت دابنێ
+CHANNEL_LINK = "https://t.me/yourchannel"
 
-CHANNELS = ["@chanaly_boot", "@team_988"]
+bot = Bot(TOKEN)
+dp = Dispatcher()
 
-replicate_client = replicate.Client(api_token=REPLICATE_API_KEY)
+# ========== Force Join Check ==========
+async def is_joined(user_id):
+    try:
+        member = await bot.get_chat_member(CHANNEL_ID, user_id)
+        return member.status in ["member", "administrator", "creator"]
+    except:
+        return False
 
-keyboard = [
-    ["🖼 جوانکردنی وێنە"],
-    ["🎬 جوانکردنی ڤیدیۆ"]
-]
-markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+def join_kb():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔔 جۆینی جەناڵ بکە", url=CHANNEL_LINK)],
+        [InlineKeyboardButton(text="✅ دووبارە هەوڵ بدە", callback_data="recheck")]
+    ])
 
-
-async def force_join(update, context):
-    user_id = update.effective_user.id
-    for ch in CHANNELS:
-        member = await context.bot.get_chat_member(ch, user_id)
-        if member.status in ["left", "kicked"]:
-            await update.message.reply_text(
-                f"تکایە سەرەتا بچۆ ناو {ch} پاشان دوبارە هەوڵبدە."
-            )
-            return False
-    return True
-
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ok = await force_join(update, context)
-    if not ok:
+# ========== Start ==========
+@dp.message(CommandStart())
+async def start(msg: Message):
+    if not await is_joined(msg.from_user.id):
+        await msg.answer("🚫 بۆ بەکارهێنانی بوت پێویستە جۆینی جەناڵ بکەیت", reply_markup=join_kb())
         return
-    await update.message.reply_text("🤖 AI Enhancer Bot بەخێربێیت", reply_markup=markup)
+    await msg.answer("👋 بەخێربێیت\n\n🔗 لینک بنێرە بۆ دابەزاندنی ڤیدیۆ")
 
+@dp.callback_query(F.data == "recheck")
+async def recheck(call):
+    if await is_joined(call.from_user.id):
+        await call.message.edit_text("✅ دەتوانیت ئێستا لینک بنێریت")
+    else:
+        await call.answer("هێشتا جۆینت نەکردووە", show_alert=True)
 
-async def enhance_image(file_url):
-    output = replicate_client.run(
-        "nightmareai/real-esrgan",
-        input={
-            "image": file_url,
-            "scale": 4,
-            "face_enhance": True
-        }
-    )
-    return output
+# ========== Download ==========
+def download_video(url):
+    ydl_opts = {
+        'outtmpl': 'video.%(ext)s',
+        'format': 'best',
+        'quiet': True
+    }
+    with YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        return ydl.prepare_filename(info)
 
-
-async def enhance_video(file_url):
-    output = replicate_client.run(
-        "nightmareai/real-esrgan",
-        input={
-            "image": file_url,
-            "scale": 4
-        }
-    )
-    return output
-
-
-async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ok = await force_join(update, context)
-    if not ok:
+@dp.message(F.text.regexp(r'https?://'))
+async def downloader(msg: Message):
+    if not await is_joined(msg.from_user.id):
+        await msg.answer("🚫 سەرەتا جۆینی جەناڵ بکە", reply_markup=join_kb())
         return
 
-    await context.bot.forward_message(
-        chat_id=ADMIN_ID,
-        from_chat_id=update.message.chat_id,
-        message_id=update.message.message_id
-    )
+    await msg.answer("⏳ چاوەڕوان بە... دابەزاندن دەستپێکرد")
 
-    photo = update.message.photo[-1]
-    file = await context.bot.get_file(photo.file_id)
-    url = file.file_path
+    try:
+        loop = asyncio.get_event_loop()
+        file = await loop.run_in_executor(None, download_video, msg.text)
 
-    await update.message.reply_text("⏳ وێنەکەت AI جوان دەکرێت...")
+        await msg.answer_video(video=open(file, 'rb'))
+        os.remove(file)
 
-    result = await enhance_image(url)
+    except Exception as e:
+        await msg.answer("❌ هەڵە ڕوویدا")
 
-    await update.message.reply_photo(photo=result)
+# ========== Run ==========
+async def main():
+    await dp.start_polling(bot)
 
-
-async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    ok = await force_join(update, context)
-    if not ok:
-        return
-
-    video = update.message.video
-    file = await context.bot.get_file(video.file_id)
-    url = file.file_path
-
-    await update.message.reply_text("⏳ ڤیدیۆ AI جوان دەکرێت...")
-
-    result = await enhance_video(url)
-
-    await update.message.reply_video(video=result)
-
-
-app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.PHOTO, photo_handler))
-app.add_handler(MessageHandler(filters.VIDEO, video_handler))
-
-app.run_polling()
+if __name__ == "__main__":
+    asyncio.run(main())
