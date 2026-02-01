@@ -1,79 +1,99 @@
 import os
-import re
 import asyncio
-from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.filters import CommandStart
-from yt_dlp import YoutubeDL
+from pyrogram import Client, filters
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+import yt_dlp
 
-TOKEN = os.getenv("TOKEN")
-CHANNEL_ID = -1001234567890  # 👈 chat id ی جەناڵەکەت دابنێ
-CHANNEL_LINK = "https://t.me/yourchannel"
+# ========= SETTINGS (هەموو شتێک لێرەیە) =========
+BOT_TOKEN = "8251863494:AAFR8r-3Fg1y_qUhbqiXNiH7CWf3yiH931k"
 
-bot = Bot(TOKEN)
-dp = Dispatcher()
+API_ID = 123456
+API_HASH = "0123456789abcdef0123456789abcdef"
 
-# ========== Force Join Check ==========
-async def is_joined(user_id):
+CHANNEL_ID = -1002252176207
+CHANNEL_LINK = "https://t.me/chanaly_boot"
+# ================================================
+
+app = Client(
+    "video_bot",
+    bot_token=BOT_TOKEN,
+    api_id=API_ID,
+    api_hash=API_HASH
+)
+
+# ---------- Force Join Check ----------
+async def not_joined(client, user_id):
     try:
-        member = await bot.get_chat_member(CHANNEL_ID, user_id)
-        return member.status in ["member", "administrator", "creator"]
+        member = await client.get_chat_member(CHANNEL_ID, user_id)
+        return member.status not in ("member", "administrator", "creator")
     except:
-        return False
+        return True
 
-def join_kb():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔔 جۆینی جەناڵ بکە", url=CHANNEL_LINK)],
-        [InlineKeyboardButton(text="✅ دووبارە هەوڵ بدە", callback_data="recheck")]
-    ])
+join_buttons = InlineKeyboardMarkup([
+    [InlineKeyboardButton("🔔 جوینی چەناڵ بکە", url=CHANNEL_LINK)],
+    [InlineKeyboardButton("✅ دووبارە هەوڵ بدە", callback_data="recheck")]
+])
 
-# ========== Start ==========
-@dp.message(CommandStart())
-async def start(msg: Message):
-    if not await is_joined(msg.from_user.id):
-        await msg.answer("🚫 بۆ بەکارهێنانی بوت پێویستە جۆینی جەناڵ بکەیت", reply_markup=join_kb())
-        return
-    await msg.answer("👋 بەخێربێیت\n\n🔗 لینک بنێرە بۆ دابەزاندنی ڤیدیۆ")
+# ---------- /start ----------
+@app.on_message(filters.command("start"))
+async def start(client, message):
+    if await not_joined(client, message.from_user.id):
+        return await message.reply(
+            "⚠️ بۆ بەکارهێنانی بوت پێویستە جوینی چەناڵ بکەیت",
+            reply_markup=join_buttons
+        )
 
-@dp.callback_query(F.data == "recheck")
-async def recheck(call):
-    if await is_joined(call.from_user.id):
-        await call.message.edit_text("✅ دەتوانیت ئێستا لینک بنێریت")
+    await message.reply(
+        "👋 بەخێربێیت بۆ Universal Video Downloader Bot\n\n"
+        "📥 لینک بنێرە بۆ دابەزاندنی ڤیدیۆ"
+    )
+
+# ---------- Recheck Button ----------
+@app.on_callback_query(filters.regex("recheck"))
+async def recheck(client, query):
+    if await not_joined(client, query.from_user.id):
+        await query.answer("❌ هێشتا جوین نەکراوە", show_alert=True)
     else:
-        await call.answer("هێشتا جۆینت نەکردووە", show_alert=True)
+        await query.message.delete()
+        await query.message.reply("✅ سەرکەوتوو بوویت! لینک بنێرە")
 
-# ========== Download ==========
+# ---------- Download Function ----------
 def download_video(url):
     ydl_opts = {
         'outtmpl': 'video.%(ext)s',
         'format': 'best',
         'quiet': True
     }
-    with YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        return ydl.prepare_filename(info)
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
 
-@dp.message(F.text.regexp(r'https?://'))
-async def downloader(msg: Message):
-    if not await is_joined(msg.from_user.id):
-        await msg.answer("🚫 سەرەتا جۆینی جەناڵ بکە", reply_markup=join_kb())
+# ---------- Handle Links ----------
+@app.on_message(filters.text & filters.private)
+async def downloader(client, message):
+    url = message.text.strip()
+
+    if not url.startswith("http"):
         return
 
-    await msg.answer("⏳ چاوەڕوان بە... دابەزاندن دەستپێکرد")
+    if await not_joined(client, message.from_user.id):
+        return await message.reply(
+            "⚠️ سەرەتا جوینی چەناڵ بکە",
+            reply_markup=join_buttons
+        )
+
+    msg = await message.reply("⏳ دابەزاندن دەست پێکرد...")
 
     try:
         loop = asyncio.get_event_loop()
-        file = await loop.run_in_executor(None, download_video, msg.text)
+        await loop.run_in_executor(None, download_video, url)
 
-        await msg.answer_video(video=open(file, 'rb'))
-        os.remove(file)
+        await message.reply_video("video.mp4", caption="✅ تەواو بوو")
+        os.remove("video.mp4")
+
+        await msg.delete()
 
     except Exception as e:
-        await msg.answer("❌ هەڵە ڕوویدا")
+        await msg.edit(f"❌ هەڵە: {e}")
 
-# ========== Run ==========
-async def main():
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# ---------- Run Bot ----------
+app.run()
