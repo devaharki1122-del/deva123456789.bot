@@ -1,6 +1,4 @@
-python-telegram-bot==20.6
-openai
-opencv-python-headless
-numpy
-yt-dlp
+pyTelegramBotAPI
 requests
+Pillow
+openai
