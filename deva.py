@@ -1,122 +1,86 @@
-import logging
+import telebot
 import aiohttp
-from aiogram import Bot, Dispatcher, executor, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+import asyncio
 
-TOKEN = "8251863494:AAFeoPstXFmg0pQTRCD2qJxDE1VfFGUG0Fc"
-ADMIN_ID = 8186735286
-CHANNELS = ["@chanaly_boot", "@team_988"]
+TOKEN = "8251863494:AAFEtDIe8Gj-zdB4DrlXmErwfbUSEhaMZpc"
+bot = telebot.TeleBot(TOKEN, parse_mode="HTML")
 
-logging.basicConfig(level=logging.INFO)
-bot = Bot(TOKEN)
-dp = Dispatcher(bot)
+CHANNELS = ["@chanaly_boot"]   # forci join
 
-# ---------------- KEYBOARDS ----------------
-
-def force_kb():
-    kb = InlineKeyboardMarkup()
-    for ch in CHANNELS:
-        kb.add(InlineKeyboardButton(f"جوینی {ch}", url=f"https://t.me/{ch.replace('@','')}"))
-    kb.add(InlineKeyboardButton("♻️ پشکنینەوە", callback_data="recheck"))
-    return kb
-
-def main_kb():
-    kb = InlineKeyboardMarkup(row_width=2)
-    kb.add(
-        InlineKeyboardButton("📥 دابەزاندن", callback_data="down"),
-        InlineKeyboardButton("🤖 AI", callback_data="ai"),
-    )
-    kb.add(
-        InlineKeyboardButton("👑 ئەدمین", callback_data="admin"),
-        InlineKeyboardButton("📩 خاوەن بوت", callback_data="owner"),
-    )
-    return kb
-
-# ---------------- FORCE JOIN ----------------
-
-async def check_join(user_id):
+# ============ Force Join Check ============
+async def is_joined(user_id):
     for ch in CHANNELS:
         try:
-            m = await bot.get_chat_member(ch, user_id)
-            if m.status in ["left", "kicked"]:
+            member = await bot.get_chat_member(ch, user_id)
+            if member.status in ["left", "kicked"]:
                 return False
         except:
             return False
     return True
 
-# ---------------- UNIVERSAL DOWNLOADER ----------------
+def join_buttons():
+    markup = telebot.types.InlineKeyboardMarkup()
+    for ch in CHANNELS:
+        markup.add(telebot.types.InlineKeyboardButton("📢 جۆینی کەناڵ", url=f"https://t.me/{ch[1:]}"))
+    markup.add(telebot.types.InlineKeyboardButton("✅ دووبارە هەوڵ بدە", callback_data="check"))
+    return markup
 
+# ============ URL Expander ============
+async def expand_url(url):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, allow_redirects=True) as resp:
+            return str(resp.url)
+
+# ============ Universal Downloader ============
 async def universal_download(url):
-    api = f"https://save-api.xyz/api/download?url={url}"
-    async with aiohttp.ClientSession() as s:
-        async with s.get(api) as r:
-            data = await r.json()
-            return data["url"]
+    api = f"https://saveapi.me/api/v1/download?url={url}"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(api) as resp:
+            data = await resp.json()
+            if data.get("success"):
+                return data["data"]["url"]
+            return None
 
-# ---------------- START ----------------
+# ============ Start ============
+@bot.message_handler(commands=['start'])
+def start(message):
+    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("🌍 هەڵبژاردنی زمان")
+    bot.send_message(message.chat.id,
+        "👋 بەخێربێیت بۆ Universal Video Downloader Bot\n\n"
+        "📥 لینک بنێرە بۆ دابەزاندنی ڤیدیۆ",
+        reply_markup=markup)
 
-@dp.message_handler(commands=["start"])
-async def start(msg: types.Message):
-    if not await check_join(msg.from_user.id):
-        await msg.answer("🔒 تکایە جوینی کەناڵەکان بکە", reply_markup=force_kb())
+# ============ Handle Messages ============
+@bot.message_handler(func=lambda m: True)
+def handle_message(message):
+    asyncio.run(process(message))
+
+async def process(message):
+    user_id = message.from_user.id
+
+    if not await is_joined(user_id):
+        await bot.send_message(
+            message.chat.id,
+            "❌ تکایە سەرەتا جۆینی کەناڵ بکە",
+            reply_markup=join_buttons()
+        )
         return
 
-    await msg.answer(
-        "🇭🇺 بەخێربێیت\nدووگمەکان بەکاربهێنە 👇",
-        reply_markup=main_kb()
-    )
+    text = message.text.strip()
 
-# ---------------- RECHECK ----------------
+    if text.startswith("http"):
+        msg = await bot.send_message(message.chat.id, "⏳ تکایە چاوەڕوان بە...")
 
-@dp.callback_query_handler(lambda c: c.data == "recheck")
-async def recheck(call: types.CallbackQuery):
-    if await check_join(call.from_user.id):
-        await call.message.edit_text("✅ ئێستا ئامادەیە", reply_markup=main_kb())
-    else:
-        await call.answer("هێشتا جوین نەکراوە ❌", show_alert=True)
+        real = await expand_url(text)
+        video = await universal_download(real)
 
-# ---------------- CALLBACKS ----------------
-
-@dp.callback_query_handler()
-async def callbacks(call: types.CallbackQuery):
-    if call.data == "owner":
-        await call.message.answer("📩 @YourUsername")
-
-    elif call.data == "admin":
-        if call.from_user.id == ADMIN_ID:
-            await call.message.answer("👑 تۆ ئەدمینیت")
+        if video:
+            await bot.send_video(message.chat.id, video)
+            await bot.delete_message(message.chat.id, msg.message_id)
         else:
-            await call.answer("تۆ ئەدمین نیت ❌", show_alert=True)
+            await bot.edit_message_text("❌ نەتوانرا ڤیدیۆ دابەزێنرێت", message.chat.id, msg.message_id)
 
-    elif call.data == "ai":
-        await call.message.answer("🤖 پرسیارەکەت بنووسە")
-
-# ---------------- MESSAGE ----------------
-
-@dp.message_handler()
-async def handle(msg: types.Message):
-
-    if not await check_join(msg.from_user.id):
-        await msg.answer("🔒 سەرەتا جوین بکە", reply_markup=force_kb())
-        return
-
-    text = msg.text
-
-    if "http" in text:
-        wait = await msg.answer("⏳ چاوەڕوان بە...")
-
-        try:
-            video_url = await universal_download(text)
-            await bot.send_video(msg.chat.id, video_url, reply_markup=main_kb())
-        except:
-            await msg.answer("❌ نەتوانرا دابەزێندرێت")
-
-        await wait.delete()
-        return
-
-    await msg.answer(f"🤖 AI:\n{text}", reply_markup=main_kb())
-
-# ---------------- RUN ----------------
-
-if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+# ============ Run ============
+print("Bot Running...")
+bot.infinity_polling()
