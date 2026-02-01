@@ -1,5 +1,6 @@
-pyTelegramBotAPI
+python-telegram-bot==20.6
 openai
-opencv-python
+opencv-python-headless
 numpy
+yt-dlp
 requests
