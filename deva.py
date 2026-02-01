@@ -1,62 +1,107 @@
-import telebot
-import subprocess
 import os
+import replicate
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = "8251863494:AAHOcpnaLVubeeX-tNVEixtnr2jHkSG8fXQ"
-bot = telebot.TeleBot(TOKEN)
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+REPLICATE_API_KEY = os.getenv("REPLICATE_API_KEY")
+ADMIN_ID = 8186735286
 
-CHANNEL = "@chanaly_boot"
+CHANNELS = ["@chanaly_boot", "@team_988"]
 
-def check_join(user_id):
-    try:
-        member = bot.get_chat_member(CHANNEL, user_id)
-        return member.status not in ["left", "kicked"]
-    except:
-        return False
+replicate_client = replicate.Client(api_token=REPLICATE_API_KEY)
 
-def join_markup():
-    markup = telebot.types.InlineKeyboardMarkup()
-    markup.add(
-        telebot.types.InlineKeyboardButton("📢 جۆینی کەناڵ", url=f"https://t.me/{CHANNEL[1:]}")
+keyboard = [
+    ["🖼 جوانکردنی وێنە"],
+    ["🎬 جوانکردنی ڤیدیۆ"]
+]
+markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+
+async def force_join(update, context):
+    user_id = update.effective_user.id
+    for ch in CHANNELS:
+        member = await context.bot.get_chat_member(ch, user_id)
+        if member.status in ["left", "kicked"]:
+            await update.message.reply_text(
+                f"تکایە سەرەتا بچۆ ناو {ch} پاشان دوبارە هەوڵبدە."
+            )
+            return False
+    return True
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    ok = await force_join(update, context)
+    if not ok:
+        return
+    await update.message.reply_text("🤖 AI Enhancer Bot بەخێربێیت", reply_markup=markup)
+
+
+async def enhance_image(file_url):
+    output = replicate_client.run(
+        "nightmareai/real-esrgan",
+        input={
+            "image": file_url,
+            "scale": 4,
+            "face_enhance": True
+        }
     )
-    return markup
+    return output
 
-@bot.message_handler(commands=['start'])
-def start(message):
-    bot.send_message(message.chat.id,
-        "👋 بەخێربێیت\n\nلینک بنێرە بۆ دابەزاندنی ڤیدیۆ")
 
-@bot.message_handler(func=lambda m: True)
-def download(message):
-    if not check_join(message.from_user.id):
-        bot.send_message(message.chat.id,
-            "❌ تکایە سەرەتا جۆینی کەناڵ بکە",
-            reply_markup=join_markup())
+async def enhance_video(file_url):
+    output = replicate_client.run(
+        "nightmareai/real-esrgan",
+        input={
+            "image": file_url,
+            "scale": 4
+        }
+    )
+    return output
+
+
+async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    ok = await force_join(update, context)
+    if not ok:
         return
 
-    url = message.text.strip()
+    await context.bot.forward_message(
+        chat_id=ADMIN_ID,
+        from_chat_id=update.message.chat_id,
+        message_id=update.message.message_id
+    )
 
-    if "http" not in url:
+    photo = update.message.photo[-1]
+    file = await context.bot.get_file(photo.file_id)
+    url = file.file_path
+
+    await update.message.reply_text("⏳ وێنەکەت AI جوان دەکرێت...")
+
+    result = await enhance_image(url)
+
+    await update.message.reply_photo(photo=result)
+
+
+async def video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    ok = await force_join(update, context)
+    if not ok:
         return
 
-    msg = bot.send_message(message.chat.id, "⏳ چاوەڕوان بە...")
+    video = update.message.video
+    file = await context.bot.get_file(video.file_id)
+    url = file.file_path
 
-    filename = "video.mp4"
+    await update.message.reply_text("⏳ ڤیدیۆ AI جوان دەکرێت...")
 
-    cmd = [
-        "yt-dlp",
-        "-f", "mp4",
-        "-o", filename,
-        url
-    ]
+    result = await enhance_video(url)
 
-    try:
-        subprocess.run(cmd, check=True)
-        bot.send_video(message.chat.id, open(filename, "rb"))
-        os.remove(filename)
-        bot.delete_message(message.chat.id, msg.message_id)
-    except:
-        bot.edit_message_text("❌ نەتوانرا ڤیدیۆ دابەزێنرێت", message.chat.id, msg.message_id)
+    await update.message.reply_video(video=result)
 
-print("Bot running...")
-bot.infinity_polling()
+
+app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.PHOTO, photo_handler))
+app.add_handler(MessageHandler(filters.VIDEO, video_handler))
+
+app.run_polling()
