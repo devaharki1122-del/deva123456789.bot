@@ -7,8 +7,8 @@ import yt_dlp
 # ========= SETTINGS (هەموو شتێک لێرەیە) =========
 BOT_TOKEN = "8251863494:AAFR8r-3Fg1y_qUhbqiXNiH7CWf3yiH931k"
 
-API_ID = 123456
-API_HASH = "0123456789abcdef0123456789abcdef"
+API_ID = 32052427
+API_HASH = "d9e14b1e99ac33e20d41479a47d2622f"
 
 CHANNEL_ID = -1002252176207
 CHANNEL_LINK = "https://t.me/chanaly_boot"
