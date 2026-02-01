@@ -4,22 +4,30 @@ from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import UserNotParticipant
 
-# ========= API =========
+# ===== API =====
 api_id = 32052427
 api_hash = "d9e14b1e99ac33e20d41479a47d2622f"
-bot_token = "8251863494:AAFK0EZ1vFa7JqsNOwrDNeK4t21RJBtlpRg"
+bot_token = "8251863494:AAGs9DbPWxM3UE6y9-zi4T-Sk_MJIKBslsk"
 
-FORCE_CHANNEL = "chanaly_boot"   # بدون @
+# ===== CHANNEL INFO =====
+FORCE_CHANNEL = -1002252176207
 CHANNEL_LINK = "https://t.me/chanaly_boot"
 
 app = Client(
-    "all_in_one_bot",
+    "video_downloader_bot",
     api_id=api_id,
     api_hash=api_hash,
     bot_token=bot_token
 )
 
-# ========= Force Join Check =========
+# ===== JOIN KEYBOARD =====
+def join_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔔 جۆینی چەنەل", url=CHANNEL_LINK)],
+        [InlineKeyboardButton("✅ جۆینم کردووە", callback_data="check_join")]
+    ])
+
+# ===== CHECK JOIN =====
 async def is_joined(client, user_id):
     try:
         member = await client.get_chat_member(FORCE_CHANNEL, user_id)
@@ -29,25 +37,19 @@ async def is_joined(client, user_id):
     except:
         return False
 
-def join_kb():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔔 جۆینی چەنەل", url=CHANNEL_LINK)],
-        [InlineKeyboardButton("✅ جۆینم کردووە", callback_data="check_join")]
-    ])
-
-# ========= Start =========
+# ===== START =====
 @app.on_message(filters.command("start") & filters.private)
 async def start(client, message):
     if not await is_joined(client, message.from_user.id):
         await message.reply(
-            "🚫 سەرەتا جۆینی چەنەل بکە",
+            "🚫 بۆ بەکارهێنانی بۆت، سەرەتا جۆینی چەنەل بکە",
             reply_markup=join_kb()
         )
         return
 
     await message.reply("👋 لینک بنێرە بۆ دابەزاندنی ڤیدیۆ 🎬")
 
-# ========= Recheck Join =========
+# ===== RECHECK JOIN =====
 @app.on_callback_query(filters.regex("check_join"))
 async def check_join(client, cq):
     if await is_joined(client, cq.from_user.id):
@@ -55,27 +57,31 @@ async def check_join(client, cq):
     else:
         await cq.answer("هێشتا جۆینت نەکردووە", show_alert=True)
 
-# ========= Download Video =========
+# ===== DOWNLOAD VIDEO =====
 def download_video(url, user_id):
     filename = f"video_{user_id}.mp4"
     cmd = ["yt-dlp", "-o", filename, url]
-    subprocess.run(cmd)
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return filename
 
-# ========= Handle Links =========
+# ===== HANDLE LINKS =====
 @app.on_message(filters.private & filters.text)
 async def handle_links(client, message):
     user_id = message.from_user.id
 
     if not await is_joined(client, user_id):
-        await message.reply("🚫 سەرەتا جۆینی چەنەل بکە", reply_markup=join_kb())
+        await message.reply(
+            "🚫 سەرەتا جۆینی چەنەل بکە",
+            reply_markup=join_kb()
+        )
         return
 
     url = message.text.strip()
+
     if "http" not in url:
         return
 
-    wait = await message.reply("⏳ دابەزاندن دەستپێکرد...")
+    wait = await message.reply("⏳ چاوەڕێ بکە... دابەزاندن دەستپێکرد")
 
     try:
         file_path = download_video(url, user_id)
@@ -85,5 +91,5 @@ async def handle_links(client, message):
     except Exception as e:
         await wait.edit(f"❌ هەڵە ڕوویدا\n{e}")
 
-# ========= Run =========
+# ===== RUN =====
 app.run()
