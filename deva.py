@@ -1,80 +1,44 @@
-import os
 import asyncio
 import time
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
 
-# ========= CONFIG =========
-BOT_TOKEN = "8251863494:AAHxYFCPXUg9h1AEigCEu7DqbXVTP9zJ8QU"
+BOT_TOKEN = "8251863494:AAF9FXWkEFguTEY1hsMdIoq72AQcyNSlsQU"
 ADMIN_ID = 8186735286
 FORCE_CHANNELS = ["@chanaly_boot"]
 
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher(bot)
 
-# ========= MEMORY =========
 users_lang = {}
 cooldown = {}
-link_memory = {}
-user_download_count = {}
-legendary_users = {}
-queue_list = []
+downloads = {}
+queue = []
 
-# ========= LANGUAGE DETECT =========
-def detect_lang(code):
-    if not code: return "en"
-    if code.startswith("ku"): return "ku"
-    if code.startswith("ar"): return "ar"
-    if code.startswith("tr"): return "tr"
-    if code.startswith("fa"): return "fa"
-    if code.startswith("de"): return "de"
-    if code.startswith("fr"): return "fr"
-    return "en"
-
-# ========= TEXTS =========
+# ---------- TEXTS ----------
 TEXTS = {
-    "start": {
-        "ku": "👑 بەخێربێیت بۆ VVVVVVIP AI Downloader Bot",
-        "en": "👑 Welcome to VVVVVVIP AI Downloader Bot",
-        "ar": "👑 أهلاً بك في بوت التحميل الذكي",
-        "tr": "👑 VIP AI indirici bota hoş geldiniz",
-        "fa": "👑 به ربات دانلود AI خوش آمدید",
-        "de": "👑 Willkommen beim VIP AI Downloader Bot",
-        "fr": "👑 Bienvenue sur le bot AI Downloader VIP",
-    },
-    "force": {
-        "ku": "🔒 تکایە سەرەتا جوینی کەناڵەکان بکە",
-        "en": "🔒 Please join channels first",
-        "ar": "🔒 يرجى الانضمام للقنوات أولاً",
-        "tr": "🔒 Önce kanallara katılın",
-        "fa": "🔒 ابتدا عضو کانال‌ها شوید",
-        "de": "🔒 Bitte zuerst Kanälen beitreten",
-        "fr": "🔒 Veuillez rejoindre les chaînes d'abord",
-    },
-    "snap": {
-        "ku": "❌ لە سناپ دابەزاندن قەدەغەیە",
-        "en": "❌ Snapchat download disabled",
-        "ar": "❌ التحميل من سناب ممنوع",
-        "tr": "❌ Snapchat indirilemez",
-        "fa": "❌ دانلود از اسنپ غیرفعال است",
-        "de": "❌ Snapchat nicht erlaubt",
-        "fr": "❌ Snapchat désactivé",
-    },
-    "about": {
-        "ku": "ℹ️ زانیاری بوت\nبوتی دابەزاندنی پیشەیی\n👑 @Deva_harki",
-        "en": "ℹ️ Bot Information\nProfessional downloader bot\n👑 @Deva_harki",
-        "ar": "ℹ️ معلومات البوت\nبوت تحميل احترافي\n👑 @Deva_harki",
-        "tr": "ℹ️ Bot bilgisi\nProfesyonel indirici bot\n👑 @Deva_harki",
-        "fa": "ℹ️ اطلاعات ربات\nربات دانلود حرفه‌ای\n👑 @Deva_harki",
-        "de": "ℹ️ Bot Info\nProfessioneller Downloader Bot\n👑 @Deva_harki",
-        "fr": "ℹ️ Infos Bot\nBot de téléchargement professionnel\n👑 @Deva_harki",
-    },
+    "force": "🔒 تکایە سەرەتا جوینی کەناڵەکان بکە",
+    "choose_lang": "🌍 تکایە زمان هەڵبژێرە",
+    "snap": "❌ لە سناپ دابەزاندن قەدەغەیە",
 }
 
-# ========= KEYBOARD =========
-def main_kb(lang):
-    kb = InlineKeyboardMarkup(row_width=1)
+# ---------- KEYBOARDS ----------
+def lang_kb():
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("🇭🇺 کوردی", callback_data="lang_ku"),
+        InlineKeyboardButton("🇺🇸 English", callback_data="lang_en"),
+        InlineKeyboardButton("🇸🇦 العربية", callback_data="lang_ar"),
+        InlineKeyboardButton("🇹🇷 Türkçe", callback_data="lang_tr"),
+        InlineKeyboardButton("🇮🇷 فارسی", callback_data="lang_fa"),
+        InlineKeyboardButton("🇩🇪 Deutsch", callback_data="lang_de"),
+        InlineKeyboardButton("🇫🇷 Français", callback_data="lang_fr"),
+    )
+    return kb
+
+def main_kb():
+    kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
         InlineKeyboardButton("ℹ️ About", callback_data="about"),
         InlineKeyboardButton("📊 Stats", callback_data="stats"),
@@ -83,93 +47,91 @@ def main_kb(lang):
     )
     return kb
 
-# ========= FORCE JOIN =========
+def admin_kb():
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("👥 Users", callback_data="a_users"),
+        InlineKeyboardButton("📥 Downloads", callback_data="a_down"),
+    )
+    return kb
+
+# ---------- FORCE JOIN ----------
 async def check_force(user_id):
     for ch in FORCE_CHANNELS:
         try:
-            member = await bot.get_chat_member(ch, user_id)
-            if member.status in ["left", "kicked"]:
+            m = await bot.get_chat_member(ch, user_id)
+            if m.status in ["left", "kicked"]:
                 return False
         except:
             return False
     return True
 
-# ========= FAKE DOWNLOAD =========
-async def fake_download():
-    await asyncio.sleep(3)
-    return "sample.mp4"  # دەتوانیت بگۆڕیت
-
-# ========= START =========
+# ---------- START ----------
 @dp.message_handler(commands=["start"])
 async def start(msg: types.Message):
-    lang = detect_lang(msg.from_user.language_code)
-    users_lang[msg.from_user.id] = lang
-    await msg.answer(TEXTS["start"][lang], reply_markup=main_kb(lang))
+    await msg.answer(TEXTS["force"])
 
-# ========= BUTTONS =========
-@dp.callback_query_handler(lambda c: c.data == "about")
-async def about(call: types.CallbackQuery):
-    lang = users_lang.get(call.from_user.id, "en")
-    await call.message.answer(TEXTS["about"][lang])
+# ---------- LANGUAGE ----------
+@dp.callback_query_handler(lambda c: c.data.startswith("lang_"))
+async def set_lang(call: types.CallbackQuery):
+    lang = call.data.split("_")[1]
+    users_lang[call.from_user.id] = lang
+    await call.message.answer("✅ Done", reply_markup=main_kb())
 
-@dp.callback_query_handler(lambda c: c.data == "stats")
-async def stats(call: types.CallbackQuery):
-    count = user_download_count.get(call.from_user.id, 0)
-    await call.message.answer(f"📊 Downloads: {count}")
+# ---------- ADMIN PANEL ----------
+@dp.message_handler(commands=["admin"])
+async def admin_panel(msg: types.Message):
+    if msg.from_user.id == ADMIN_ID:
+        await msg.answer("👑 Admin Panel", reply_markup=admin_kb())
 
-@dp.callback_query_handler(lambda c: c.data == "rank")
-async def rank(call: types.CallbackQuery):
-    c = legendary_users.get(call.from_user.id, 0)
-    badge = "Legendary" if c >= 50 else "Gold" if c >= 20 else "Silver" if c >= 10 else "New"
-    await call.message.answer(f"🎖 Rank: {badge}")
+@dp.callback_query_handler(lambda c: c.data == "a_users")
+async def a_users(call: types.CallbackQuery):
+    await call.message.answer(f"Users: {len(users_lang)}")
 
-# ========= HANDLE LINKS =========
+@dp.callback_query_handler(lambda c: c.data == "a_down")
+async def a_down(call: types.CallbackQuery):
+    await call.message.answer(f"Downloads: {len(downloads)}")
+
+# ---------- HANDLE LINKS ----------
 @dp.message_handler(lambda m: m.text and "http" in m.text)
 async def handle_link(msg: types.Message):
-    user_id = msg.from_user.id
-    lang = users_lang.get(user_id, "en")
-    url = msg.text.strip()
+    user = msg.from_user.id
+    url = msg.text
 
-    if not await check_force(user_id):
-        await msg.answer(TEXTS["force"][lang])
+    if not await check_force(user):
+        await msg.answer(TEXTS["force"])
+        return
+
+    if user not in users_lang:
+        await msg.answer(TEXTS["choose_lang"], reply_markup=lang_kb())
         return
 
     if "snapchat" in url:
-        await msg.answer(TEXTS["snap"][lang])
+        await msg.answer(TEXTS["snap"])
         return
 
     now = time.time()
-    if user_id in cooldown and now - cooldown[user_id] < 6:
+    if user in cooldown and now - cooldown[user] < 5:
         return
-    cooldown[user_id] = now
+    cooldown[user] = now
 
-    queue_list.append(user_id)
-    pos = len(queue_list)
-    status = await msg.answer(f"🇭🇺 لینکەکەت وەرگیرا\n⏳ نوبەی تۆ: #{pos}")
+    queue.append(user)
+    pos = len(queue)
+    wait = await msg.answer(f"⏳ نوبەی تۆ: {pos}")
 
-    if url in link_memory:
-        file_path = link_memory[url]
-    else:
-        file_path = await fake_download()
-        link_memory[url] = file_path
+    await asyncio.sleep(3)
 
-    user_download_count[user_id] = user_download_count.get(user_id, 0) + 1
-    legendary_users[user_id] = legendary_users.get(user_id, 0) + 1
+    downloads[url] = True
+    await msg.answer("✅ Downloaded", reply_markup=main_kb())
 
-    try:
-        await msg.answer_video(open(file_path, "rb"), reply_markup=main_kb(lang))
-    except:
-        await msg.answer("⚠️ File not found. Change sample.mp4")
+    await wait.delete()
+    queue.remove(user)
 
-    await status.delete()
-    await bot.send_message(ADMIN_ID, f"Download: {url}")
-    queue_list.remove(user_id)
-
-# ========= AI MODE =========
+# ---------- AI ----------
 @dp.message_handler()
-async def ai_mode(msg: types.Message):
-    await msg.answer("🤖 AI Ready", reply_markup=main_kb("en"))
+async def ai(msg: types.Message):
+    await msg.answer("🤖 AI Ready", reply_markup=main_kb())
 
-# ========= RUN =========
+# ---------- RUN ----------
 if __name__ == "__main__":
     executor.start_polling(dp)
