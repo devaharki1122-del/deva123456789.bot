@@ -7,10 +7,10 @@ from pyrogram.errors import UserNotParticipant
 # ========= API =========
 api_id = 32052427
 api_hash = "d9e14b1e99ac33e20d41479a47d2622f"
-bot_token = "8251863494:AAGwGJ502VbJj62pYHAqVQxDPcESl_7FQ-I"
+bot_token = "8251863494:AAFK0EZ1vFa7JqsNOwrDNeK4t21RJBtlpRg"
 
-FORCE_CHANNEL = "@chanaly_boot"  # بدون @
-
+FORCE_CHANNEL = "chanaly_boot"   # بدون @
+CHANNEL_LINK = "https://t.me/chanaly_boot"
 
 app = Client(
     "all_in_one_bot",
@@ -40,7 +40,7 @@ def join_kb():
 async def start(client, message):
     if not await is_joined(client, message.from_user.id):
         await message.reply(
-            "🚫 بۆ بەکارهێنانی بۆت، تکایە سەرەتا جۆینی چەنەل بکە",
+            "🚫 سەرەتا جۆینی چەنەل بکە",
             reply_markup=join_kb()
         )
         return
@@ -51,7 +51,7 @@ async def start(client, message):
 @app.on_callback_query(filters.regex("check_join"))
 async def check_join(client, cq):
     if await is_joined(client, cq.from_user.id):
-        await cq.message.edit_text("✅ سەرکەوتووانە جۆینت کرد — لینک بنێرە")
+        await cq.message.edit_text("✅ جۆینت کرد — لینک بنێرە")
     else:
         await cq.answer("هێشتا جۆینت نەکردووە", show_alert=True)
 
@@ -59,7 +59,7 @@ async def check_join(client, cq):
 def download_video(url, user_id):
     filename = f"video_{user_id}.mp4"
     cmd = ["yt-dlp", "-o", filename, url]
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(cmd)
     return filename
 
 # ========= Handle Links =========
@@ -68,18 +68,14 @@ async def handle_links(client, message):
     user_id = message.from_user.id
 
     if not await is_joined(client, user_id):
-        await message.reply(
-            "🚫 سەرەتا جۆینی چەنەل بکە",
-            reply_markup=join_kb()
-        )
+        await message.reply("🚫 سەرەتا جۆینی چەنەل بکە", reply_markup=join_kb())
         return
 
     url = message.text.strip()
-
     if "http" not in url:
         return
 
-    wait = await message.reply("⏳ چاوەڕێ بکە... دابەزاندن دەستپێکرد")
+    wait = await message.reply("⏳ دابەزاندن دەستپێکرد...")
 
     try:
         file_path = download_video(url, user_id)
