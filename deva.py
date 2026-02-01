@@ -1,35 +1,28 @@
 import os
 import re
 import asyncio
+import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils import executor
+from playwright.async_api import async_playwright
 
-TOKEN = "8251863494:AAHkxXI_qSBYRjuHyKn2W0KkOlI7-P2qzu4"
-CHANNELS = ["@chanaly_boot"]
-ADMIN = 8186735286
+TOKEN = "8251863494:AAH9aaBBHzUXrWku1XFCSKVSCthYuwWft34"
+CHANNELS = ["@chanaly_boot"]  # change
+OWNER = "https://t.me/Deva_harki"
 
 bot = Bot(TOKEN)
 dp = Dispatcher(bot)
-
-# ---------------- AI Kurdish Reply ----------------
-def ai_reply(text):
-    return f"""🤖 AI:
-تۆ ناردت:
-{text}
-
-ئەگەر ئەمە لینکەکە نیە، تکایە تەنها لینک بنێرە بۆ دابەزاندن 📥"""
 
 # ---------------- Keyboards ----------------
 def main_menu():
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
         InlineKeyboardButton("📥 دابەزاندن", callback_data="download"),
-        InlineKeyboardButton("📊 ئامار", callback_data="stats"),
+        InlineKeyboardButton("ℹ️ زانیاری بوت", callback_data="about"),
     )
     kb.add(
-        InlineKeyboardButton("ℹ️ دەربارەی بوت", callback_data="about"),
-        InlineKeyboardButton("📩 پەیوەندی", url="https://t.me/Deva_harki"),
+        InlineKeyboardButton("📩 نامە بۆ خاوەن بوت", url=OWNER),
     )
     return kb
 
@@ -44,7 +37,7 @@ def force_join_kb():
     return kb
 
 
-# ---------------- Force Join Check ----------------
+# ---------------- Force Join ----------------
 async def check_join(user_id):
     for ch in CHANNELS:
         try:
@@ -56,22 +49,53 @@ async def check_join(user_id):
     return True
 
 
+# ---------------- Snapchat Block ----------------
+def is_snap(text):
+    return "snapchat.com" in text or "snap.com" in text
+
+
 # ---------------- Link Detect ----------------
 def is_link(text):
-    patterns = [
-        r"tiktok\.com", r"vt\.tiktok\.com",
-        r"instagram\.com",
-        r"facebook\.com",
-        r"youtu\.be", r"youtube\.com",
-        r"twitter\.com", r"x\.com",
-    ]
-    return any(re.search(p, text) for p in patterns)
+    return "http" in text
 
 
-# ---------------- Fake Download ----------------
+# ---------------- AI Reply ----------------
+def ai_reply(text):
+    return f"""🤖 AI:
+تۆ ناردت:
+{text}
+
+تکایە تەنها لینک بنێرە بۆ دابەزاندن 📥"""
+
+
+# ---------------- Playwright Download ----------------
 async def download_media(url):
-    await asyncio.sleep(3)
-    return "sample.mp4"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.goto(url, timeout=60000)
+        await page.wait_for_timeout(5000)
+
+        video_url = await page.evaluate("""
+        () => {
+            const v = document.querySelector('video');
+            return v ? v.src : null;
+        }
+        """)
+
+        if not video_url:
+            await browser.close()
+            return None
+
+        file_path = "video.mp4"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(video_url) as resp:
+                with open(file_path, "wb") as f:
+                    f.write(await resp.read())
+
+        await browser.close()
+        return file_path
 
 
 # ---------------- Start ----------------
@@ -79,14 +103,11 @@ async def download_media(url):
 async def start(msg: types.Message):
     ok = await check_join(msg.from_user.id)
     if not ok:
-        await msg.answer(
-            "🔒 تکایە سەرەتا جوینی کەناڵ بکە",
-            reply_markup=force_join_kb(),
-        )
+        await msg.answer("🔒 سەرەتا جوینی کەناڵ بکە", reply_markup=force_join_kb())
         return
 
     await msg.answer(
-        "🇭🇺 بەخێربێیت بۆ VVVVVIP AI Downloader Bot",
+        "🇭🇺 بەخێربێیت\nتەنها لینک بنێرە بۆ دابەزاندن",
         reply_markup=main_menu(),
     )
 
@@ -101,24 +122,19 @@ async def recheck(call: types.CallbackQuery):
         await call.answer("هێشتا جوین نەکراوە ❌", show_alert=True)
 
 
-# ---------------- Menu Buttons ----------------
+# ---------------- About ----------------
 @dp.callback_query_handler(lambda c: c.data == "about")
 async def about(call: types.CallbackQuery):
     await call.message.edit_text(
-        "ℹ️ ئەم بوتە بۆ دابەزاندنی ڤیدیۆی TikTok, Instagram, Facebook, YouTube دروستکراوە.",
+        "ℹ️ ئەم بوتە بۆ دابەزاندنی TikTok, Instagram, Facebook, YouTube دروستکراوە.",
         reply_markup=main_menu(),
     )
-
-
-@dp.callback_query_handler(lambda c: c.data == "stats")
-async def stats(call: types.CallbackQuery):
-    await call.answer("📊 ئامار بەردەست نیە", show_alert=True)
 
 
 @dp.callback_query_handler(lambda c: c.data == "download")
 async def download_btn(call: types.CallbackQuery):
     await call.message.edit_text(
-        "📥 تکایە لینک بنێرە بۆ دابەزاندن",
+        "📥 لینک بنێرە بۆ دابەزاندن",
         reply_markup=main_menu(),
     )
 
@@ -133,10 +149,23 @@ async def handle(msg: types.Message):
         await msg.answer("🔒 سەرەتا جوینی کەناڵ بکە", reply_markup=force_join_kb())
         return
 
+    if is_snap(text):
+        await msg.answer(
+            "ببورە، بە فەرمانی @Deva_harki ناتوانم لە Snapchat دابەزێنم 🇭🇺"
+        )
+        return
+
     if is_link(text):
-        wait = await msg.answer("⏳ لینکەکەت وەرگیرا، چاوەڕوان بە...")
+        wait = await msg.answer(
+            "🇭🇺 لینکەکەت وەرگیرا\n⏳ چاوەڕوان بە..."
+        )
 
         file_path = await download_media(text)
+
+        if not file_path:
+            await wait.edit_text("❌ نەتوانرا ڤیدیۆ بدۆزرێتەوە")
+            return
+
         size = os.path.getsize(file_path)
 
         if size < 50 * 1024 * 1024:
@@ -145,8 +174,9 @@ async def handle(msg: types.Message):
             await msg.answer_document(open(file_path, "rb"), reply_markup=main_menu())
 
         await wait.delete()
-    else:
-        await msg.answer(ai_reply(text), reply_markup=main_menu())
+        return
+
+    await msg.answer(ai_reply(text), reply_markup=main_menu())
 
 
 if __name__ == "__main__":
