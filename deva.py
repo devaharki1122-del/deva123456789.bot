@@ -1,50 +1,62 @@
 import os
+import asyncio
 import yt_dlp
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application, CommandHandler, MessageHandler,
-    ContextTypes, filters, CallbackQueryHandler
-)
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = "chanaly_boot"
 OWNER_USERNAME = "Deva_harki"
 
 
-# ---------- دوگمەکان ----------
-def main_buttons():
+# ---------- Buttons ----------
+def buttons():
     keyboard = [
-        [InlineKeyboardButton("⬇️ داونلۆد ڤیدیۆ", callback_data="download")],
+        [InlineKeyboardButton("⬇️ داونلۆد ڤیدیۆ", callback_data="dl")],
         [InlineKeyboardButton("👨‍💻 ئەدمین پانیل", callback_data="admin")],
         [InlineKeyboardButton("✉️ نامە بۆ خاوەن بوت", url=f"https://t.me/{OWNER_USERNAME}")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 
-# ---------- فۆرسی چۆین ----------
+# ---------- Force Join ----------
 async def force_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     member = await context.bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id)
 
     if member.status in ["left", "kicked"]:
-        keyboard = [
-            [InlineKeyboardButton("📢 چوونە چەناڵ", url=f"https://t.me/{CHANNEL_USERNAME}")]
-        ]
         await update.message.reply_text(
-            "🚫 تکایە سەرەتا بچۆرە چەناڵ بۆ بەکارهێنانی بۆت 👇",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            "🚫 بۆ بەکارهێنانی بۆت پێویستە ئەندام بیت لەم چەناڵە 👇\n"
+            f"https://t.me/{CHANNEL_USERNAME}"
         )
         return False
     return True
 
 
-# ---------- داونلۆد ڤیدیۆ ----------
+# ---------- Smart Loading Messages ----------
+loading_msgs = [
+    "⏳ داونلۆد دەستی پێکرد... تکایە ئارام بگرە 😊",
+    "📥 ڤیدیۆکە قەبارەی زۆر هەیە، تۆزێک چاوەڕێ بکە 🎥",
+    "⚡ خەریکی ئامادەکردنی ڤیدیۆ + دەنگین...",
+]
+
+
+async def animate_loading(msg):
+    for text in loading_msgs:
+        await msg.edit_text(text)
+        await asyncio.sleep(3)
+
+
+# ---------- Download Video ----------
 def download_video(url):
     ydl_opts = {
         'format': 'bestvideo+bestaudio/best',
         'outtmpl': 'video.%(ext)s',
+        'merge_output_format': 'mp4',
         'quiet': True,
-        'merge_output_format': 'mp4'
+        'noplaylist': True,
+        'socket_timeout': 15,
+        'retries': 3
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -55,36 +67,40 @@ def download_video(url):
             return f
 
 
-# ---------- /start ----------
+# ---------- Start ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 بەخێربێیت بۆ بۆتی داونلۆد\n\n"
-        "🔗 لینکی هەر ڤیدیۆیەک بنێرە\n"
-        "🎥 بۆت ڤیدیۆکە بە دەنگ دادەبەزێنێت",
-        reply_markup=main_buttons()
+        "👋 بەخێربێیت بۆ بۆتی داونلۆدی زیرەک 🤖✨\n\n"
+        "🔗 تەنها لینکی ڤیدیۆ بنێرە\n"
+        "🎥 بۆت ڤیدیۆکە بە کوالیتی بەرز + دەنگ دادەبەزێنێت\n\n"
+        "دوگمەکان بەکاربهێنە 👇",
+        reply_markup=buttons()
     )
 
 
-# ---------- وەرگرتنی لینک ----------
+# ---------- Handle Link ----------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await force_join(update, context):
         return
 
-    url = update.message.text
-    msg = await update.message.reply_text("⏳ داونلۆد دەستی پێکرد... تکایە چاوەڕێ بکە")
+    text = update.message.text
+
+    if "http" not in text:
+        return
+
+    msg = await update.message.reply_text("⏳ داونلۆد دەستی پێکرد...")
+    asyncio.create_task(animate_loading(msg))
 
     try:
-        file_path = download_video(url)
-
+        file_path = download_video(text)
         await update.message.reply_video(video=open(file_path, "rb"))
         os.remove(file_path)
         await msg.delete()
-
-    except Exception as e:
+    except:
         await msg.edit_text("❌ هەڵەیەک ڕوویدا، لینکەکە دروستە؟")
 
 
-# ---------- ئەدمین پانیل ----------
+# ---------- Admin Panel ----------
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -96,15 +112,13 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text("👨‍💻 بەخێربێیت بۆ ئەدمین پانیل")
 
 
-# ---------- Callback ----------
+# ---------- Callbacks ----------
 async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-
-    if query.data == "admin":
+    if update.callback_query.data == "admin":
         await admin_panel(update, context)
 
 
-# ---------- MAIN ----------
+# ---------- Main ----------
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -112,7 +126,6 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(callbacks))
 
-    print("Bot running...")
     app.run_polling()
 
 
