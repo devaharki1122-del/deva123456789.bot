@@ -1,38 +1,38 @@
 import os
 import yt_dlp
-import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-CHANNEL_USERNAME = "chanaly_boot"
+CHANNEL_USERNAME = "chanaly_boot"  # بەبێ @
 OWNER_USERNAME = "Deva_harki"
+
 USERS_FILE = "users.txt"
 
 
-# ---------------- Save Users ----------------
+# -------- Users Save --------
 def save_user(user_id):
     if not os.path.exists(USERS_FILE):
-        open(USERS_FILE, "w").close()
+        with open(USERS_FILE, "w") as f:
+            f.write("")
 
-    with open(USERS_FILE, "r+") as f:
+    with open(USERS_FILE, "r") as f:
         users = f.read().splitlines()
-        if str(user_id) not in users:
+
+    if str(user_id) not in users:
+        with open(USERS_FILE, "a") as f:
             f.write(f"{user_id}\n")
 
 
-# ---------------- Force Join ----------------
+# -------- Force Join --------
 async def force_join_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        user_id = update.effective_user.id
-        member = await context.bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except:
-        return True
+    user_id = update.effective_user.id
+    member = await context.bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id)
+    return member.status in ["member", "administrator", "creator"]
 
 
-# ---------------- Menus ----------------
+# -------- Keyboards --------
 def main_menu():
     keyboard = [
         [InlineKeyboardButton("📥 داونلۆدی ڤیدیۆ", callback_data="download")],
@@ -44,35 +44,36 @@ def main_menu():
 
 
 def back_button():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📢 چانەل", url=f"https://t.me/{CHANNEL_USERNAME}")],
-        [InlineKeyboardButton("🔙 گەڕانەوە بۆ سەرەتا", callback_data="home")]
-    ])
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🔙 گەڕانەوە بۆ سەرەتا", callback_data="home")]]
+    )
 
 
-# ---------------- Start ----------------
+# -------- Start --------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_user(update.effective_user.id)
+    user = update.effective_user
+    save_user(user.id)
 
     joined = await force_join_check(update, context)
+
     if not joined:
         keyboard = [
             [InlineKeyboardButton("📢 چۆین بکە", url=f"https://t.me/{CHANNEL_USERNAME}")],
             [InlineKeyboardButton("✅ پشکنینەوە", callback_data="check_join")]
         ]
         await update.message.reply_text(
-            "🔒 پێویستە سەرەتا چۆینی چانەلەکە بکەیت 👇",
+            "🔒 بۆ بەکارهێنانی بۆت پێویستە چۆینی چانەلەکە بکەیت 👇",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
 
     await update.message.reply_text(
-        "👋 بەخێربێیت بۆ بۆتی داونلۆدی ڤیدیۆ 🎥\n\nلینک بنێرە 👇",
+        "👋 بەخێربێیت بۆ بۆتی داونلۆدی ڤیدیۆ 🎥\n\nلینک بنێرە یان دووگمەکان بەکاربهێنە 👇",
         reply_markup=main_menu()
     )
 
 
-# ---------------- Buttons ----------------
+# -------- Buttons --------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -85,13 +86,14 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🤖 زانیاری بۆت\n\n"
             "ئەم بۆتە ڤیدیۆ دابەزێنێت لە:\n"
             "TikTok • Instagram • Facebook • YouTube\n\n"
+            "⚡ خێرا و بە کوالیتی بەرز\n\n"
             "👨‍💻 لەلاین @Deva_harki دروستکراوە",
             reply_markup=back_button()
         )
 
     elif query.data == "owner":
         await query.edit_message_text(
-            f"📨 پەیوەندی بکە 👇\nhttps://t.me/{OWNER_USERNAME}",
+            f"📨 پەیوەندی بە خاوەن بۆت 👇\n\nhttps://t.me/{OWNER_USERNAME}",
             reply_markup=back_button()
         )
 
@@ -100,15 +102,17 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("❌ تەنها ئەدمین", reply_markup=back_button())
             return
 
-        users_count = len(open(USERS_FILE).read().splitlines())
+        with open(USERS_FILE, "r") as f:
+            count = len(f.readlines())
+
         await query.edit_message_text(
-            f"🛠 Admin Panel 👑\n\n👥 ژمارەی بەکارهێنەران: {users_count}",
+            f"🛠 Admin Panel\n\n👥 ژمارەی بەکارهێنەران: {count}",
             reply_markup=back_button()
         )
 
     elif query.data == "download":
         await query.edit_message_text(
-            "🔗 تکایە لینک ڤیدیۆ بنێرە 🎥",
+            "🔗 تکایە لینک ڤیدیۆ بنێرە بۆ داونلۆد 🎥",
             reply_markup=back_button()
         )
 
@@ -120,20 +124,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("❌ هێشتا چۆینت نەکردووە", show_alert=True)
 
 
-# ---------------- Loading Animation ----------------
-async def loading_animation(msg):
-    steps = [
-        "⏳ داونلۆد دەستی پێکرد...",
-        "📥 ڤیدیۆ دادەبەزێنرێت...",
-        "⚙️ ڤیدیۆ + دەنگ تێکەڵ دەکرێت...",
-        "🚀 نزیکەی تەواوبوون..."
-    ]
-    for s in steps:
-        await msg.edit_text(s)
-        await asyncio.sleep(2)
-
-
-# ---------------- Downloader ----------------
+# -------- Download --------
 def download_video(url, filename="video.mp4"):
     ydl_opts = {
         'format': 'best',
@@ -149,11 +140,9 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
     if "http" not in text:
-        await update.message.reply_text("⚠️ تکایە تەنها لینک بنێرە 🎥")
         return
 
-    msg = await update.message.reply_text("⏳ داونلۆد دەستی پێکرد...")
-    asyncio.create_task(loading_animation(msg))
+    await update.message.reply_text("⏳ داونلۆد دەستی پێکرد...")
 
     try:
         file_name = "video.mp4"
@@ -161,13 +150,12 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_video(video=open(file_name, "rb"))
         os.remove(file_name)
-        await msg.delete()
 
     except Exception as e:
-        await msg.edit_text(f"❌ هەڵەیەک ڕوویدا\n{e}")
+        await update.message.reply_text(f"❌ هەڵەیەک ڕوویدا\n{e}")
 
 
-# ---------------- Main ----------------
+# -------- Main --------
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
