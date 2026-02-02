@@ -1,129 +1,133 @@
-# -*- coding: utf-8 -*-
 import os
-import telebot
-import requests
-from PIL import Image, ImageEnhance
-from io import BytesIO
-from openai import OpenAI
+import re
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
-TOKEN = "8251863494:AAE97rTPyw-hyQk5hYndd7f1Sa9zgM1Ar80"
-OPENAI_KEY = "
-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"
-
-bot = telebot.TeleBot(TOKEN)
-client = OpenAI(api_key=OPENAI_KEY)
+BOT_TOKEN = "8251863494:AAGB7Wwt0j82hAyB-WRY7tnjefDD05_jQEM"
+ADMIN_ID = 8186735286
 
 CHANNEL_1 = "@chanaly_boot"
 CHANNEL_2 = "@team_988"
 
-ADMIN_ID = 123456789  # ئایدی خۆت دابنێ
+WEBHOOK_URL = "https://YOUR-RAILWAY-URL.up.railway.app"
 
-# ---------- فەنکشنی دڵنیابوون لە جۆین ----------
-def check_join(user_id):
+
+# ================= KEYBOARD =================
+keyboard = [
+    ["🤖 AI زیرەک", "🖼 وێنە جوانکرد"],
+    ["⬇️ داونلۆدی ڤیدیۆ"],
+]
+markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+
+# ================= FORCE JOIN =================
+async def force_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     try:
-        c1 = bot.get_chat_member(CHANNEL_1, user_id)
-        c2 = bot.get_chat_member(CHANNEL_2, user_id)
-        return c1.status != "left" and c2.status != "left"
+        member1 = await context.bot.get_chat_member(CHANNEL_1, user_id)
+        member2 = await context.bot.get_chat_member(CHANNEL_2, user_id)
+
+        if member1.status in ["left", "kicked"] or member2.status in ["left", "kicked"]:
+            await update.message.reply_text(
+                f"""🚫 بۆ بەردەوامبوون پێویستە جۆینی ئەم جەنالانە بکەیت:
+
+{CHANNEL_1}
+{CHANNEL_2}
+
+دوای جۆین /start بنووسە."""
+            )
+            return False
+        return True
     except:
-        return False
+        return True
 
-# ---------- ستارت ----------
-@bot.message_handler(commands=['start'])
-def start(msg):
-    if not check_join(msg.from_user.id):
-        markup = telebot.types.InlineKeyboardMarkup()
-        markup.add(
-            telebot.types.InlineKeyboardButton("جۆین ١", url=f"https://t.me/{CHANNEL_1[1:]}"),
-            telebot.types.InlineKeyboardButton("جۆین ٢", url=f"https://t.me/{CHANNEL_2[1:]}")
-        )
-        markup.add(telebot.types.InlineKeyboardButton("دووبارە هەوڵبدە", callback_data="check"))
-        bot.send_message(msg.chat.id, "تکایە سەرەتا جۆین بکە 👇", reply_markup=markup)
+
+# ================= START =================
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await force_join(update, context):
         return
 
-    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🤖 AI", "🖼 وێنە جوانکرد")
-    markup.add("⬇️ داونلۆد ڤیدیۆ")
+    text = """
+👋 بەخێربێیت بۆ AI Bot
 
-    bot.send_message(msg.chat.id,
-    "👋 بەخێربێیت بۆ بوتەکەمان\n"
-    "هەر لینکێک بنێرە بۆ داونلۆد 🎬\n"
-    "یان دووگمەی خوارەوە بەکاربهێنە 👇",
-    reply_markup=markup)
+🤖 AI زیرەک  
+🖼 جوانکردنی وێنەکانت (سافکردنی دەموچا)  
+⬇️ داونلۆدی ڤیدیۆ لە هەموو شۆینەکان  
 
-# ---------- AI ----------
-@bot.message_handler(func=lambda m: m.text == "🤖 AI")
-def ai_mode(msg):
-    bot.send_message(msg.chat.id, "پرسیارەکەت بنێرە 🤖")
+تەنها دووگمەی خوارەوە هەڵبژێرە 👇
+"""
+    await update.message.reply_text(text, reply_markup=markup)
 
-@bot.message_handler(func=lambda m: True, content_types=['text'])
-def ai_chat(msg):
-    if msg.text.startswith("http"):
-        download_video(msg)
+
+# ================= BUTTONS =================
+async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+
+    if text == "🤖 AI زیرەک":
+        await update.message.reply_text("پرسیارەکەت بنووسە 👇")
+        context.user_data["mode"] = "ai"
         return
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": msg.text}]
-        )
-        bot.send_message(msg.chat.id, response.choices[0].message.content)
-    except:
-        pass
 
-# ---------- جوانکردنی وێنە ----------
-@bot.message_handler(func=lambda m: m.text == "🖼 وێنە جوانکرد")
-def img_start(msg):
-    bot.send_message(msg.chat.id, "وێنەکە بنێرە 📸")
-
-@bot.message_handler(content_types=['photo'])
-def enhance_photo(msg):
-    file_info = bot.get_file(msg.photo[-1].file_id)
-    downloaded = bot.download_file(file_info.file_path)
-    image = Image.open(BytesIO(downloaded))
-
-    enhancer = ImageEnhance.Sharpness(image)
-    image = enhancer.enhance(2)
-    enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(1.5)
-
-    bio = BytesIO()
-    bio.name = 'enhanced.jpg'
-    image.save(bio, 'JPEG')
-    bio.seek(0)
-
-    bot.send_photo(msg.chat.id, bio, caption="وێنەکەت جوانکرا ✨")
-
-# ---------- داونلۆد ڤیدیۆ ----------
-def download_video(msg):
-    url = msg.text
-    api = f"https://api.tiklydown.me/api/download?url={url}"
-    try:
-        r = requests.get(api).json()
-        video = r['video']['noWatermark']
-        bot.send_video(msg.chat.id, video, caption="دانلۆد کرا ✅")
-    except:
-        bot.send_message(msg.chat.id, "لینکەکە پشتگیری ناکرێت")
-
-@bot.message_handler(func=lambda m: m.text == "⬇️ داونلۆد ڤیدیۆ")
-def how_download(msg):
-    bot.send_message(msg.chat.id, "تەنها لینکێکی TikTok / Insta / YouTube بنێرە")
-
-# ---------- ئەدمین پانێڵ ----------
-@bot.message_handler(commands=['admin'])
-def admin_panel(msg):
-    if msg.from_user.id != ADMIN_ID:
+    if text == "🖼 وێنە جوانکرد":
+        await update.message.reply_text("وێنەکەت بنێرە 👇")
+        context.user_data["mode"] = "image"
         return
-    bot.send_message(msg.chat.id, "ئەدمین پانێڵ:\n/send broadcast")
 
-@bot.message_handler(commands=['send'])
-def broadcast(msg):
-    if msg.from_user.id != ADMIN_ID:
+    if text == "⬇️ داونلۆدی ڤیدیۆ":
+        await update.message.reply_text("لینکی ڤیدیۆکە بنێرە 👇")
+        context.user_data["mode"] = "download"
         return
-    text = msg.text.replace("/send ", "")
-    for user in []:
-        try:
-            bot.send_message(user, text)
-        except:
-            pass
 
-print("Bot Running...")
-bot.infinity_polling()
+
+# ================= AI / DOWNLOAD =================
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    mode = context.user_data.get("mode")
+
+    if mode == "ai":
+        await update.message.reply_text("🤖 وەڵامی AI لێرە دەردەکەوێت.")
+        return
+
+    if mode == "download":
+        url = update.message.text
+        if re.match(r"https?://", url):
+            await update.message.reply_text(
+                "⬇️ داونلۆد دەستی پێکرد...\n⏳ تکایە ئارام بگرە..."
+            )
+        else:
+            await update.message.reply_text("تکایە لینکێکی دروست بنێرە.")
+        return
+
+
+# ================= IMAGE =================
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get("mode") == "image":
+        await update.message.reply_text("🖼 وێنەکە جوان دەکرێت...")
+        return
+
+
+# ================= MAIN =================
+def main():
+    app = Application.builder().token(BOT_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, buttons))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+
+    PORT = int(os.environ.get("PORT", 8080))
+
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=WEBHOOK_URL,
+    )
+
+
+if __name__ == "__main__":
+    main()
