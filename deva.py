@@ -1,158 +1,118 @@
 import os
-import requests
-from io import BytesIO
+import yt_dlp
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
-    filters, ContextTypes, CallbackQueryHandler
+    ContextTypes, filters, CallbackQueryHandler
 )
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-CHANNEL_USERNAME = "@chanaly_boot"
-ADMIN_ID = 8186735286
-
-
-# ---------------- Force Join ----------------
-async def is_joined(user_id, bot):
-    try:
-        member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except:
-        return False
+CHANNEL_USERNAME = "chanaly_boot"
+OWNER_USERNAME = "Deva_harki"
 
 
-def join_kb():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔔 Join Channel", url=f"https://t.me/{CHANNEL_USERNAME.replace('@','')}")],
-        [InlineKeyboardButton("✅ Joined", callback_data="check_join")]
-    ])
+# ---------- دوگمەکان ----------
+def main_buttons():
+    keyboard = [
+        [InlineKeyboardButton("⬇️ داونلۆد ڤیدیۆ", callback_data="download")],
+        [InlineKeyboardButton("👨‍💻 ئەدمین پانیل", callback_data="admin")],
+        [InlineKeyboardButton("✉️ نامە بۆ خاوەن بوت", url=f"https://t.me/{OWNER_USERNAME}")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 
-# ---------------- Keyboards ----------------
-def main_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("⬇️ Download Video", callback_data="download")],
-        [InlineKeyboardButton("📨 نامە بۆ خاوەن بوت", url="https://t.me/Deva_harki")],
-        [InlineKeyboardButton("🛠 Admin Panel", callback_data="admin")]
-    ])
-
-
-def admin_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📊 زانیاری بوت", callback_data="stats")],
-        [InlineKeyboardButton("🔙 Back", callback_data="back")]
-    ])
-
-
-# ---------------- Start ----------------
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ---------- فۆرسی چۆین ----------
+async def force_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    member = await context.bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id)
 
-    if not await is_joined(user_id, context.bot):
+    if member.status in ["left", "kicked"]:
+        keyboard = [
+            [InlineKeyboardButton("📢 چوونە چەناڵ", url=f"https://t.me/{CHANNEL_USERNAME}")]
+        ]
         await update.message.reply_text(
-            "⚠️ بۆ بەکارهێنانی بوت پێویستە جوینی چانەل بکەیت",
-            reply_markup=join_kb()
+            "🚫 تکایە سەرەتا بچۆرە چەناڵ بۆ بەکارهێنانی بۆت 👇",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        return
+        return False
+    return True
 
+
+# ---------- داونلۆد ڤیدیۆ ----------
+def download_video(url):
+    ydl_opts = {
+        'format': 'bestvideo+bestaudio/best',
+        'outtmpl': 'video.%(ext)s',
+        'quiet': True,
+        'merge_output_format': 'mp4'
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+
+    for f in os.listdir():
+        if f.startswith("video."):
+            return f
+
+
+# ---------- /start ----------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🤖 بەخێربێیت\n\nلینکی TikTok بنێرە بۆ داونلۆد ⬇️",
-        reply_markup=main_menu()
+        "👋 بەخێربێیت بۆ بۆتی داونلۆد\n\n"
+        "🔗 لینکی هەر ڤیدیۆیەک بنێرە\n"
+        "🎥 بۆت ڤیدیۆکە بە دەنگ دادەبەزێنێت",
+        reply_markup=main_buttons()
     )
 
 
-# ---------------- Buttons ----------------
-async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    user_id = query.from_user.id
-    await query.answer()
-
-    # Check Join
-    if query.data == "check_join":
-        if await is_joined(user_id, context.bot):
-            await query.message.edit_text("✅ سوپاس بۆ جوین کردن", reply_markup=main_menu())
-        else:
-            await query.answer("❌ هێشتا جوین نەبوویت", show_alert=True)
-
-    # Download
-    elif query.data == "download":
-        if not await is_joined(user_id, context.bot):
-            await query.message.reply_text("سەرەتا جوین بکە", reply_markup=join_kb())
-            return
-
-        context.user_data["mode"] = "download"
-        await query.message.reply_text("🔗 لینک بنێرە")
-
-    # Admin
-    elif query.data == "admin":
-        if user_id != ADMIN_ID:
-            await query.answer("تۆ ئەدمین نیت ❌", show_alert=True)
-            return
-        await query.message.edit_text("🛠 Admin Panel", reply_markup=admin_menu())
-
-    # Stats
-    elif query.data == "stats":
-        await query.message.edit_text(
-            "📊 بوت بە باشی کار دەکات\nForce Join: ON\nDownloader: ON",
-            reply_markup=admin_menu()
-        )
-
-    # Back
-    elif query.data == "back":
-        await query.message.edit_text("🔙 گەڕانەوە", reply_markup=main_menu())
-
-
-# ---------------- Downloader ----------------
-def download_tiktok(url):
-    api = f"https://tikwm.com/api/?url={url}"
-    r = requests.get(api).json()
-
-    if "data" in r and "play" in r["data"]:
-        video_url = r["data"]["play"]
-        title = r["data"].get("title", "TikTok Video")
-
-        video = requests.get(video_url).content
-        bio = BytesIO(video)
-        bio.name = "video.mp4"
-        return bio, title
-
-    return None, None
-
-
-# ---------------- Messages ----------------
+# ---------- وەرگرتنی لینک ----------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    text = update.message.text
-
-    if not await is_joined(user_id, context.bot):
-        await update.message.reply_text("⚠️ جوینی چانەل بکە", reply_markup=join_kb())
+    if not await force_join(update, context):
         return
 
-    if context.user_data.get("mode") == "download":
-        if "http" in text:
-            msg = await update.message.reply_text("⬇️ داونلۆد دەستی پێکرد...")
+    url = update.message.text
+    msg = await update.message.reply_text("⏳ داونلۆد دەستی پێکرد... تکایە چاوەڕێ بکە")
 
-            try:
-                video, title = download_tiktok(text)
-                if video:
-                    await update.message.reply_video(video, caption=title)
-                    await msg.delete()
-                else:
-                    await msg.edit_text("❌ نەتوانرا داونلۆد بکرێت")
-            except:
-                await msg.edit_text("❌ هەڵە ڕوویدا")
+    try:
+        file_path = download_video(url)
+
+        await update.message.reply_video(video=open(file_path, "rb"))
+        os.remove(file_path)
+        await msg.delete()
+
+    except Exception as e:
+        await msg.edit_text("❌ هەڵەیەک ڕوویدا، لینکەکە دروستە؟")
 
 
-# ---------------- Main ----------------
+# ---------- ئەدمین پانیل ----------
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.from_user.username != OWNER_USERNAME:
+        await query.edit_message_text("⛔ تۆ ئەدمین نیت")
+        return
+
+    await query.edit_message_text("👨‍💻 بەخێربێیت بۆ ئەدمین پانیل")
+
+
+# ---------- Callback ----------
+async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+
+    if query.data == "admin":
+        await admin_panel(update, context)
+
+
+# ---------- MAIN ----------
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(buttons))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CallbackQueryHandler(callbacks))
 
-    print("Bot Running...")
+    print("Bot running...")
     app.run_polling()
 
 
