@@ -1,163 +1,160 @@
 import os
-import re
 import requests
 from io import BytesIO
-from PIL import Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-    filters,
+    Application, CommandHandler, MessageHandler,
+    filters, ContextTypes, CallbackQueryHandler
 )
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
 CHANNEL_USERNAME = "@chanaly_boot"
 ADMIN_ID = 8186735286
-USERS_FILE = "users.txt"
 
-# ========= Users =========
-def save_user(user_id):
-    if not os.path.exists(USERS_FILE):
-        open(USERS_FILE, "w").close()
-    with open(USERS_FILE, "r") as f:
-        users = f.read().splitlines()
-    if str(user_id) not in users:
-        with open(USERS_FILE, "a") as f:
-            f.write(f"{user_id}\n")
 
-def get_users():
-    if not os.path.exists(USERS_FILE):
-        return []
-    with open(USERS_FILE, "r") as f:
-        return f.read().splitlines()
-
-# ========= Force Join =========
-async def force_join(user_id, bot):
+# ---------------- Force Join ----------------
+async def is_joined(user_id, bot):
     try:
         member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
         return member.status in ["member", "administrator", "creator"]
     except:
         return False
 
-# ========= Menu =========
-def menu():
+
+def join_kb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🤖 AI", callback_data="ai")],
-        [InlineKeyboardButton("🖼 وێنە جوانکرد", callback_data="photo")],
-        [InlineKeyboardButton("⬇️ Download", callback_data="download")],
-        [InlineKeyboardButton("👨‍💻 Admin Panel", callback_data="admin_panel")],
-        [InlineKeyboardButton("✉️ نامە بۆ خاوەن بوت", url="https://t.me/Deva_harki")]
+        [InlineKeyboardButton("🔔 Join Channel", url=f"https://t.me/{CHANNEL_USERNAME.replace('@','')}")],
+        [InlineKeyboardButton("✅ Joined", callback_data="check_join")]
     ])
 
-# ========= Start =========
+
+# ---------------- Keyboards ----------------
+def main_menu():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("⬇️ Download Video", callback_data="download")],
+        [InlineKeyboardButton("📨 نامە بۆ خاوەن بوت", url="https://t.me/Deva_harki")],
+        [InlineKeyboardButton("🛠 Admin Panel", callback_data="admin")]
+    ])
+
+
+def admin_menu():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📊 زانیاری بوت", callback_data="stats")],
+        [InlineKeyboardButton("🔙 Back", callback_data="back")]
+    ])
+
+
+# ---------------- Start ----------------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    save_user(user_id)
 
-    if not await force_join(user_id, context.bot):
-        btn = [[InlineKeyboardButton("🔔 Join Channel", url=f"https://t.me/{CHANNEL_USERNAME[1:]}")]]
-        await update.message.reply_text("تکایە جۆینی چەنەڵ بکە:", reply_markup=InlineKeyboardMarkup(btn))
+    if not await is_joined(user_id, context.bot):
+        await update.message.reply_text(
+            "⚠️ بۆ بەکارهێنانی بوت پێویستە جوینی چانەل بکەیت",
+            reply_markup=join_kb()
+        )
         return
 
-    await update.message.reply_text("👋 بەخێربێیت", reply_markup=menu())
+    await update.message.reply_text(
+        "🤖 بەخێربێیت\n\nلینکی TikTok بنێرە بۆ داونلۆد ⬇️",
+        reply_markup=main_menu()
+    )
 
-# ========= Buttons =========
+
+# ---------------- Buttons ----------------
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
+    query = update.callback_query
+    user_id = query.from_user.id
+    await query.answer()
 
-    if q.data == "ai":
-        context.user_data["mode"] = "ai"
-        await q.message.reply_text("نامەکەت بنێرە 🤖")
+    # Check Join
+    if query.data == "check_join":
+        if await is_joined(user_id, context.bot):
+            await query.message.edit_text("✅ سوپاس بۆ جوین کردن", reply_markup=main_menu())
+        else:
+            await query.answer("❌ هێشتا جوین نەبوویت", show_alert=True)
 
-    elif q.data == "photo":
-        context.user_data["mode"] = "photo"
-        await q.message.reply_text("وێنە بنێرە 🖼")
-
-    elif q.data == "download":
-        context.user_data["mode"] = "download"
-        await q.message.reply_text("لینک بنێرە ⬇️")
-
-    elif q.data == "admin_panel":
-        if q.from_user.id != ADMIN_ID:
+    # Download
+    elif query.data == "download":
+        if not await is_joined(user_id, context.bot):
+            await query.message.reply_text("سەرەتا جوین بکە", reply_markup=join_kb())
             return
-        btn = [
-            [InlineKeyboardButton("📊 ژمارەی بەکارهێنەران", callback_data="users")],
-            [InlineKeyboardButton("📢 Broadcast", callback_data="bc")]
-        ]
-        await q.message.reply_text(
-            f"👨‍💻 Admin Panel\n👥 {len(get_users())} Users",
-            reply_markup=InlineKeyboardMarkup(btn)
+
+        context.user_data["mode"] = "download"
+        await query.message.reply_text("🔗 لینک بنێرە")
+
+    # Admin
+    elif query.data == "admin":
+        if user_id != ADMIN_ID:
+            await query.answer("تۆ ئەدمین نیت ❌", show_alert=True)
+            return
+        await query.message.edit_text("🛠 Admin Panel", reply_markup=admin_menu())
+
+    # Stats
+    elif query.data == "stats":
+        await query.message.edit_text(
+            "📊 بوت بە باشی کار دەکات\nForce Join: ON\nDownloader: ON",
+            reply_markup=admin_menu()
         )
 
-    elif q.data == "users":
-        await q.message.reply_text(f"👥 Users: {len(get_users())}")
+    # Back
+    elif query.data == "back":
+        await query.message.edit_text("🔙 گەڕانەوە", reply_markup=main_menu())
 
-    elif q.data == "bc":
-        context.user_data["broadcast"] = True
-        await q.message.reply_text("نامەکە بنێرە بۆ بڵاوکردنەوە 📢")
 
-# ========= Text =========
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.strip()
+# ---------------- Downloader ----------------
+def download_tiktok(url):
+    api = f"https://tikwm.com/api/?url={url}"
+    r = requests.get(api).json()
 
-    # Broadcast
-    if context.user_data.get("broadcast") and update.effective_user.id == ADMIN_ID:
-        for u in get_users():
+    if "data" in r and "play" in r["data"]:
+        video_url = r["data"]["play"]
+        title = r["data"].get("title", "TikTok Video")
+
+        video = requests.get(video_url).content
+        bio = BytesIO(video)
+        bio.name = "video.mp4"
+        return bio, title
+
+    return None, None
+
+
+# ---------------- Messages ----------------
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text
+
+    if not await is_joined(user_id, context.bot):
+        await update.message.reply_text("⚠️ جوینی چانەل بکە", reply_markup=join_kb())
+        return
+
+    if context.user_data.get("mode") == "download":
+        if "http" in text:
+            msg = await update.message.reply_text("⬇️ داونلۆد دەستی پێکرد...")
+
             try:
-                await context.bot.send_message(u, text)
+                video, title = download_tiktok(text)
+                if video:
+                    await update.message.reply_video(video, caption=title)
+                    await msg.delete()
+                else:
+                    await msg.edit_text("❌ نەتوانرا داونلۆد بکرێت")
             except:
-                pass
-        context.user_data["broadcast"] = False
-        await update.message.reply_text("بڵاوکرایەوە ✅")
-        return
+                await msg.edit_text("❌ هەڵە ڕوویدا")
 
-    # AI
-    if context.user_data.get("mode") == "ai":
-        await update.message.reply_text(f"AI:\n{text}")
-        return
 
-    # Downloader
-    if re.match(r'https?://', text):
-        msg = await update.message.reply_text("⬇️ داونلۆد دەستی پێکرد...")
-        try:
-            r = requests.get(text, timeout=20)
-            file = BytesIO(r.content)
-            file.name = "file"
-            await update.message.reply_document(file)
-            await msg.delete()
-        except:
-            await msg.edit_text("❌ هەڵە لە لینک")
-
-# ========= Photo =========
-async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get("mode") != "photo":
-        return
-
-    photo = update.message.photo[-1]
-    file = await photo.get_file()
-    img = Image.open(BytesIO(await file.download_as_bytearray())).convert("RGB")
-
-    bio = BytesIO()
-    bio.name = "enhanced.jpg"
-    img.save(bio, "JPEG", quality=95)
-    bio.seek(0)
-
-    await update.message.reply_photo(bio, caption="✨ وێنەکەت جوان کرا")
-
-# ========= Main =========
+# ---------------- Main ----------------
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(buttons))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-    app.add_handler(MessageHandler(filters.PHOTO, photo_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
+    print("Bot Running...")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
