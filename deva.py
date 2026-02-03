@@ -1,158 +1,174 @@
 import os
+import re
 import yt_dlp
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    CallbackQueryHandler, ContextTypes, filters
+)
+import logging
 
-# ---------- Config ----------
-BOT_TOKEN = os.getenv("BOT_TOKEN")  #      : "12345:ABCDEF"
-CHANNEL_USERNAME = "chanaly_boot"  #  @
-OWNER_USERNAME = "Deva_harki"
-USERS_FILE = "users.txt"
+#     ID 
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OWNER_ID = 8186735286
+OWNER_USERNAME = "@Deva_harki"
 
-COOKIES_FILE = "cookies.txt"  #  cookies export   browser
+#  
+logging.basicConfig(level=logging.INFO)
 
-# ---------- Users Save ----------
-def save_user(user_id):
-    if not os.path.exists(USERS_FILE):
-        with open(USERS_FILE, "w") as f:
-            f.write("")
-    with open(USERS_FILE, "r") as f:
-        users = f.read().splitlines()
-    if str(user_id) not in users:
-        with open(USERS_FILE, "a") as f:
-            f.write(f"{user_id}\n")
+#    TikTok  
+def fix_tiktok_url(url):
+    if "tiktok.com" in url:
+        match = re.search(r'/video/(\d+)', url)
+        if match:
+            return f"https://vm.tiktok.com/{match.group(1)}/"
+    return url
 
-# ---------- Force Join ----------
-async def force_join_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    try:
-        member = await context.bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except:
-        return False
-
-# ---------- Keyboards ----------
-def main_menu():
-    keyboard = [
-        [InlineKeyboardButton("  ", callback_data="download")],
-        [InlineKeyboardButton("  ", callback_data="about")],
-        [InlineKeyboardButton("    ", callback_data="owner")],
-        [InlineKeyboardButton(" Admin Panel", callback_data="admin")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-def back_button():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("   ", callback_data="home")]])
-
-# ---------- Start ----------
+#  /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    save_user(user.id)
-    joined = await force_join_check(update, context)
-
-    if not joined:
-        keyboard = [
-            [InlineKeyboardButton("  ", url=f"https://t.me/{CHANNEL_USERNAME}")],
-            [InlineKeyboardButton(" ", callback_data="check_join")]
-        ]
-        await update.message.reply_text(
-            "        ",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+    try:
+        await context.bot.send_message(
+            chat_id=OWNER_ID,
+            text=f" * !*\n\n"
+                 f": {user.full_name}\n"
+                 f"ID: `{user.id}`\n"
+                 f": tg://user?id={user.id}",
+            parse_mode="Markdown"
         )
-        return
+    except Exception as e:
+        logging.error(f"   : {e}")
 
+    keyboard = [
+        [InlineKeyboardButton("  ", callback_data="download")],
+        [InlineKeyboardButton(" ", callback_data="info"),
+         InlineKeyboardButton("  ", callback_data="admin")],
+        [InlineKeyboardButton("    ", url="https://t.me/Deva_harki")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "      \n\n     ",
-        reply_markup=main_menu()
+        f" {user.first_name}! \n"        "   (YouTube, TikTok, Instagram...) ",
+        reply_markup=reply_markup
     )
 
-# ---------- Buttons ----------
-async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#  
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    raw_url = update.message.text.strip()
+    url = fix_tiktok_url(raw_url)
+
+    #  
+    valid_domains = ["http", "youtu", "instagram", "tiktok", "facebook", "twitter", "x.com", "snapchat", "vimeo"]
+    if not any(domain in url for domain in valid_domains):
+        await update.message.reply_text("   !")
+        return
+
+    msg = await update.message.reply_text("   ...")
+
+    ydl_opts = {
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'outtmpl': '%(title).50s.%(ext)s',  #      
+        'noplaylist': True,
+        'quiet': True,
+        'no_warnings': True,
+        'merge_output_format': 'mp4',
+        'retries': 3,
+        'socket_timeout': 15,
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+
+        # 
+        title = info.get('title', '')
+        views = info.get('view_count', '')
+        likes = info.get('like_count', '')
+        comments = info.get('comment_count', '')
+        shares = info.get('repost_count', '') or info.get('share_count', '')
+
+        caption = (
+            f" *{title}*\n\n"
+            f" : {views}\n"
+            f" : {likes}\n"
+            f" : {comments}\n"
+            f" : {shares}\n\n"
+            f" @Deva_harki"
+        )
+
+        await update.message.reply_video(video=open(filename, 'rb'), caption=caption, parse_mode="Markdown")        os.remove(filename)
+
+        #  
+        await context.bot.send_message(
+            OWNER_ID,
+            f" * !*\n"
+            f": [{update.effective_user.full_name}](tg://user?id={update.effective_user.id})",
+            parse_mode="Markdown"
+        )
+
+    except Exception as e:
+        error_msg = str(e)
+        if "Log in for access" in error_msg:
+            reply = (
+                "   !\n"
+                "  **vm.tiktok.com** .\n\n"
+                "  :\n"
+                ".  Share \n"
+                ". Copy link \n"
+                ".    !"
+            )
+        else:
+            reply = f" : {error_msg[:200]}..."
+
+        await msg.edit_text(reply)
+        logging.error(f"  : {e}")
+
+#  
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    if query.data == "home":
-        await query.edit_message_text(" ", reply_markup=main_menu())
+    if query.data == "download":
+        await query.message.reply_text("    (YouTube, TikTok, Instagram...)")
 
-    elif query.data == "about":
-        await query.edit_message_text(
-            "  \n\n"
-            "    :\n"
-            "TikTok • Instagram • Facebook • YouTube\n\n"
-            "     \n\n"
-            f"   @{OWNER_USERNAME}",
-            reply_markup=back_button()
+    elif query.data == "info":
+        info_text = (
+            " * *\n\n"
+            ": Glitch Media Downloader\n"
+            ": 2.2 (-)\n"
+            ": yt-dlp + Telegram Bot API\n"
+            ": @Deva_harki\n"
+            ":   \n"
+            "    @Deva_harki "
         )
-
-    elif query.data == "owner":
-        await query.edit_message_text(
-            f"     \n\nhttps://t.me/{OWNER_USERNAME}",
-            reply_markup=back_button()
-        )
+        await query.message.reply_text(info_text, parse_mode="Markdown")
 
     elif query.data == "admin":
-        if query.from_user.username != OWNER_USERNAME:
-            await query.edit_message_text("  ", reply_markup=back_button())
-            return
-        with open(USERS_FILE, "r") as f:
-            count = len(f.readlines())
-        await query.edit_message_text(f" Admin Panel\n\n  : {count}", reply_markup=back_button())
+        join1 = "https://t.me/GlitchGroup1"
+        join2 = "https://t.me/GlitchGroup2"        admin_kb = [
+            [InlineKeyboardButton("  ", url=join1)],
+            [InlineKeyboardButton("  ", url=join2)],
+            [InlineKeyboardButton("   ", url="https://t.me/Deva_harki")],
+            [InlineKeyboardButton(" ", callback_data="back")]
+        ]
+        await query.message.reply_text(
+            " * *", 
+            reply_markup=InlineKeyboardMarkup(admin_kb),
+            parse_mode="Markdown"
+        )
 
-    elif query.data == "download":
-        await query.edit_message_text("       ", reply_markup=back_button())
+    elif query.data == "back":
+        await start(query, context)
 
-    elif query.data == "check_join":
-        joined = await force_join_check(update, context)
-        if joined:
-            await query.edit_message_text("   ", reply_markup=main_menu())
-        else:
-            await query.answer("   ", show_alert=True)
-
-# ---------- Download ----------
-def download_video(url, filename="video.mp4"):
-    ydl_opts = {
-        "format": "bv*+ba/best",
-        "outtmpl": filename,
-        "noplaylist": True,
-        "quiet": True,
-        "cookiefile": COOKIES_FILE,
-        "age_limit": 0,
-        "geo_bypass": True,
-        "geo_bypass_country": "US",
-        "retries": 10,
-        "fragment_retries": 10,
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-            "Accept-Language": "en-US,en;q=0.9",
-        },
-        "ignoreerrors": False,
-        "nocheckcertificate": True,
-    }
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
-
-async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    if "http" not in text:
-        return
-    await update.message.reply_text("   ...")
-
-    try:
-        file_name = "video.mp4"
-        download_video(text, file_name)
-        await update.message.reply_video(video=open(file_name, "rb"))
-        os.remove(file_name)
-    except Exception as e:
-        await update.message.reply_text(f"  \n{e}")
-
-# ---------- Main ----------
+#  
 def main():
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(buttons))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
-    print("Bot is running...")
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CallbackQueryHandler(button_handler))
+
+    print("   ...")
     app.run_polling()
 
 if __name__ == "__main__":
