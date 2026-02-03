@@ -1,5 +1,6 @@
 import os
 import requests
+import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -12,8 +13,8 @@ from telegram.ext import (
 
 # ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_USERNAME = "chanaly_boot"  # without @
-OWNER_USERNAME = "Deva_harki"      # without @
+CHANNEL_USERNAME = "chanaly_boot"
+OWNER_USERNAME = "Deva_harki"
 USERS_FILE = "users.txt"
 
 # ================= SAVE USERS =================
@@ -73,7 +74,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif q.data == "about":
         await q.edit_message_text(
             "TikTok • Instagram • YouTube • Snapchat • Facebook • Twitter/X\n\n"
-            "❌ yt-dlp\n✅ API Downloader",
+            "❌ yt-dlp\n✅ API Downloader with retry & fallback",
             reply_markup=back_btn()
         )
     elif q.data == "owner":
@@ -89,7 +90,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await q.answer("❌ هێشتا چۆینت نەکردووە", show_alert=True)
 
-# ================= UNIVERSAL API FALLBACK =================
+# ================= UNIVERSAL API + RETRY =================
 APIS = [
     {"name": "cobalt", "url": "https://api.cobalt.tools/api/json"},
     {"name": "snapx", "url": "https://api.snapx.download/tiktok"},
@@ -98,32 +99,35 @@ APIS = [
     {"name": "ytdown", "url": "https://ytdownloaderapi.com/api"},
 ]
 
-def download_video(url, filename="video.mp4"):
+def download_video(url, filename="video.mp4", retries=3):
     headers = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
-    for api in APIS:
-        try:
-            payload = {"url": url, "vQuality": "max", "vCodec": "h264", "isAudioOnly": False}
-            r = requests.post(api["url"], json=payload, headers=headers, timeout=30)
-            data = r.json()
 
-            # detect video URL in response
-            video_url = None
-            if "url" in data:
-                video_url = data["url"]
-            elif "data" in data and "play" in data["data"]:
-                video_url = data["data"]["play"]
-            else:
+    for attempt in range(retries):
+        for api in APIS:
+            try:
+                payload = {"url": url, "vQuality": "max", "vCodec": "h264", "isAudioOnly": False}
+                r = requests.post(api["url"], json=payload, headers=headers, timeout=30)
+                data = r.json()
+
+                video_url = None
+                if "url" in data:
+                    video_url = data["url"]
+                elif "data" in data and "play" in data["data"]:
+                    video_url = data["data"]["play"]
+                else:
+                    continue
+
+                video = requests.get(video_url, stream=True, timeout=30)
+                with open(filename, "wb") as f:
+                    for chunk in video.iter_content(1024):
+                        if chunk:
+                            f.write(chunk)
+                return True
+            except:
                 continue
+        time.sleep(2)  # wait before next retry
 
-            video = requests.get(video_url, stream=True, timeout=30)
-            with open(filename, "wb") as f:
-                for chunk in video.iter_content(1024):
-                    if chunk:
-                        f.write(chunk)
-            return True
-        except:
-            continue
-    raise Exception("All APIs failed")
+    raise Exception("All APIs failed after retries")
 
 # ================= HANDLE LINK =================
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -139,8 +143,8 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
             caption="✅ داونلۆد کرا"
         )
         os.remove(file)
-    except:
-        await update.message.reply_text("❌ نەتوانرا داونلۆد بکرێت")
+    except Exception as e:
+        await update.message.reply_text(f"❌ نەتوانرا داونلۆد بکرێت\n{e}")
 
 # ================= MAIN =================
 def main():
