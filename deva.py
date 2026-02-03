@@ -1,4 +1,4 @@
-کimport os
+import os
 import logging
 import yt_dlp
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -11,7 +11,6 @@ OWNER_USERNAME = "Deva_harki"
 COOKIES_PATH = "/app/cookies.txt"
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-
 logging.basicConfig(level=logging.INFO)
 
 # ================= FORCE JOIN =================
@@ -35,7 +34,6 @@ def back_menu():
 
 # ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
     if not await is_joined(update, context):
         kb = InlineKeyboardMarkup([[InlineKeyboardButton("📢 چۆین بکە", url=f"https://t.me/{CHANNEL_USERNAME}")]])
         await update.message.reply_text("🔒 تکایە سەرەتا چۆینی چانەل بکە👇", reply_markup=kb)
@@ -43,7 +41,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "👋 بەخێربێیت!\n\n"
-        "🔗 لینک ڤیدیۆ بنێرە (TikTok / Insta / YT / FB / X)\n"
+        "🔗 لینک ڤیدیۆ بنێرە (TikTok / Instagram / YouTube / Facebook / X)\n"
         "ℹ️ Age-restricted → cookies.txt پێویستە",
         reply_markup=main_menu()
     )
@@ -81,7 +79,7 @@ def download_video(url: str):
         info = ydl.extract_info(url, download=True)
         file_path = ydl.prepare_filename(info)
 
-        # Fallback audio >50MB
+        # Fallback audio بۆ >50MB
         if os.path.getsize(file_path) > 50*1024*1024:
             ydl_opts_audio = {
                 "format": "bestaudio/best",
