@@ -2,22 +2,14 @@ import os
 import requests
 import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-    filters,
-)
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
-# ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = "chanaly_boot"
 OWNER_USERNAME = "Deva_harki"
-USERS_FILE = "users.txt"
 
 # ================= SAVE USERS =================
+USERS_FILE = "users.txt"
 def save_user(user_id):
     if not os.path.exists(USERS_FILE):
         open(USERS_FILE, "w").close()
@@ -30,9 +22,7 @@ def save_user(user_id):
 # ================= FORCE JOIN =================
 async def force_join_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        member = await context.bot.get_chat_member(
-            f"@{CHANNEL_USERNAME}", update.effective_user.id
-        )
+        member = await context.bot.get_chat_member(f"@{CHANNEL_USERNAME}", update.effective_user.id)
         return member.status in ["member", "administrator", "creator"]
     except:
         return False
@@ -42,9 +32,8 @@ def main_menu():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📥 داونلۆد", callback_data="download")],
         [InlineKeyboardButton("ℹ️ زانیاری", callback_data="about")],
-        [InlineKeyboardButton("📨 خاوەن بۆت", callback_data="owner")],
+        [InlineKeyboardButton("📨 خاوەن بۆت", callback_data="owner")]
     ])
-
 def back_btn():
     return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 گەڕانەوە", callback_data="home")]])
 
@@ -78,10 +67,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=back_btn()
         )
     elif q.data == "owner":
-        await q.edit_message_text(
-            f"https://t.me/{OWNER_USERNAME}",
-            reply_markup=back_btn()
-        )
+        await q.edit_message_text(f"https://t.me/{OWNER_USERNAME}", reply_markup=back_btn())
     elif q.data == "download":
         await q.edit_message_text("🔗 لینک ڤیدیۆ بنێرە", reply_markup=back_btn())
     elif q.data == "check_join":
@@ -101,14 +87,12 @@ APIS = [
 
 def download_video(url, filename="video.mp4", retries=3):
     headers = {"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}
-
     for attempt in range(retries):
         for api in APIS:
             try:
-                payload = {"url": url, "vQuality": "max", "vCodec": "h264", "isAudioOnly": False}
+                payload = {"url": url,"vQuality": "max","vCodec": "h264","isAudioOnly": False}
                 r = requests.post(api["url"], json=payload, headers=headers, timeout=30)
                 data = r.json()
-
                 video_url = None
                 if "url" in data:
                     video_url = data["url"]
@@ -116,17 +100,15 @@ def download_video(url, filename="video.mp4", retries=3):
                     video_url = data["data"]["play"]
                 else:
                     continue
-
                 video = requests.get(video_url, stream=True, timeout=30)
                 with open(filename, "wb") as f:
                     for chunk in video.iter_content(1024):
                         if chunk:
                             f.write(chunk)
                 return True
-            except:
-                continue
-        time.sleep(2)  # wait before next retry
-
+            except Exception as e:
+                print(f"[API {api['name']}] failed: {e}")
+        time.sleep(2)
     raise Exception("All APIs failed after retries")
 
 # ================= HANDLE LINK =================
@@ -138,10 +120,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         file = "video.mp4"
         download_video(url, file)
-        await update.message.reply_video(
-            video=open(file, "rb"),
-            caption="✅ داونلۆد کرا"
-        )
+        await update.message.reply_video(video=open(file, "rb"), caption="✅ داونلۆد کرا")
         os.remove(file)
     except Exception as e:
         await update.message.reply_text(f"❌ نەتوانرا داونلۆد بکرێت\n{e}")
