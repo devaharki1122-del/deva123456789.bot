@@ -162,7 +162,7 @@ async def handle_link(client, msg):
         info, file_path = await asyncio.to_thread(download_video, msg.text)
         took = int(time.time() - start_time)
         await msg.reply_video(
-            file_path,
+            video=file_path,
             caption=(
                 f" {info.get('title')}\n"
                 f" {took} sec\n"
