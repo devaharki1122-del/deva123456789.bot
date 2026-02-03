@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ==================================================
 #  TELEGRAM VIDEO / MP3 DOWNLOADER BOT (ONE FILE)
 # ==================================================
@@ -17,7 +18,7 @@ API_HASH = os.getenv("API_HASH")
 OWNER_ID = 8186735286
 OWNER_USERNAME = "Deva_harki"
 
-CHANNELS = ["team_988", "chanaly_boot"]  # Force Join enabled
+CHANNELS = ["team_988", "chanaly_boot"]  # Force Join channels
 DOWNLOAD_PATH = "downloads"
 os.makedirs(DOWNLOAD_PATH, exist_ok=True)
 
@@ -96,13 +97,11 @@ def download_audio(url):
 # ================= START COMMAND =================
 @app.on_message(filters.command("start"))
 async def start(client, msg):
-    # Notify owner
     await client.send_message(
         OWNER_ID,
         f" New user\n {msg.from_user.id}"
     )
 
-    # Force join check
     if not await check_join(client, msg.from_user.id):
         return await msg.reply(
             "     ",
@@ -147,7 +146,6 @@ async def callbacks(client, cb):
 # ================= HANDLE LINKS =================
 @app.on_message(filters.text & ~filters.command())
 async def handle_link(client, msg):
-    # Force Join
     if not await check_join(client, msg.from_user.id):
         return await msg.reply(
             "    ",
