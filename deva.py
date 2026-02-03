@@ -10,22 +10,12 @@ from telegram.ext import (
     filters,
 )
 
+# ================= CONFIG =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = "chanaly_boot"   # without @
 OWNER_USERNAME = "Deva_harki"       # without @
-USERS_FILE = "users.txt"
 
-
-def save_user(user_id):
-    if not os.path.exists(USERS_FILE):
-        open(USERS_FILE, "w").close()
-    with open(USERS_FILE, "r") as f:
-        users = f.read().splitlines()
-    if str(user_id) not in users:
-        with open(USERS_FILE, "a") as f:
-            f.write(f"{user_id}\n")
-
-
+# ================= FORCE JOIN =============
 async def force_join_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         member = await context.bot.get_chat_member(
@@ -35,7 +25,7 @@ async def force_join_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         return False
 
-
+# ================= KEYBOARDS ==============
 def main_menu():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📥 داونلۆد", callback_data="download")],
@@ -43,16 +33,13 @@ def main_menu():
         [InlineKeyboardButton("📨 خاوەن بۆت", callback_data="owner")],
     ])
 
-
 def back_btn():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔙 گەڕانەوە", callback_data="home")]
     ])
 
-
+# ================= START ==================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    save_user(update.effective_user.id)
-
     if not await force_join_check(update, context):
         await update.message.reply_text(
             "🔒 تکایە چۆینی چانەل بکە",
@@ -64,11 +51,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        "🔗 لینک بنێرە بۆ داونلۆد",
+        "🔗 لینک بنێرە بۆ داونلۆدی ڤیدیۆ",
         reply_markup=main_menu()
     )
 
-
+# ================= BUTTONS ================
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -78,7 +65,8 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif q.data == "about":
         await q.edit_message_text(
-            "TikTok • Instagram • Facebook • YouTube • Twitter/X",
+            "TikTok • Instagram • Facebook • YouTube • Twitter/X\n\n"
+            "❌ yt-dlp\n✅ API Downloader",
             reply_markup=back_btn()
         )
 
@@ -100,7 +88,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await q.answer("❌", show_alert=True)
 
-
+# ============ UNIVERSAL API ONLY ==========
 def download_video_api(url, filename="video.mp4"):
     api = "https://api.cobalt.tools/api/json"
 
@@ -128,13 +116,14 @@ def download_video_api(url, filename="video.mp4"):
             if chunk:
                 f.write(chunk)
 
-
+# ================= HANDLE LINK ============
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text
-    if "http" not in url:
+    url = update.message.text.strip()
+
+    if not url.startswith("http"):
         return
 
-    await update.message.reply_text("⏳")
+    await update.message.reply_text("⏳ داونلۆد دەستی پێکرد...")
 
     try:
         file = "video.mp4"
@@ -142,14 +131,15 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_video(
             video=open(file, "rb"),
-            caption="✅"
+            caption="✅ داونلۆد کرا"
         )
 
         os.remove(file)
+
     except:
-        await update.message.reply_text("❌")
+        await update.message.reply_text("❌ نەتوانرا داونلۆد بکرێت")
 
-
+# ================= MAIN ===================
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -158,7 +148,6 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()
