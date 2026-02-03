@@ -17,7 +17,7 @@ API_HASH = os.getenv("API_HASH")
 OWNER_ID = 8186735286
 OWNER_USERNAME = "Deva_harki"
 
-CHANNELS = ["team_988", "chanaly_boot"]
+CHANNELS = ["team_988", "chanaly_boot"]  # Force Join enabled
 DOWNLOAD_PATH = "downloads"
 os.makedirs(DOWNLOAD_PATH, exist_ok=True)
 
@@ -33,13 +33,17 @@ USER_MODE = {}  # video | mp3
 
 # ================= FORCE JOIN =================
 async def check_join(client, user_id):
-    for ch in CHANNELS:
-        try:
+    """
+    Check if user joined required channels.
+    For testing, you can temporarily disable by returning True
+    """
+    try:
+        for ch in CHANNELS:
             m = await client.get_chat_member(ch, user_id)
             if m.status == "left":
                 return False
-        except:
-            return False
+    except:
+        return False
     return True
 
 def join_keyboard():
@@ -54,15 +58,15 @@ MAIN_KEYBOARD = InlineKeyboardMarkup([
         InlineKeyboardButton(" ", callback_data="mode_video"),
         InlineKeyboardButton(" MP3", callback_data="mode_mp3")
     ],
-    [InlineKeyboardButton("    ", url="https://t.me/Deva_harki")]
+    [InlineKeyboardButton("    ", url=f"https://t.me/{OWNER_USERNAME}")]
 ])
 
 ADMIN_KEYBOARD = InlineKeyboardMarkup([
     [InlineKeyboardButton(" Stats", callback_data="admin_stats")],
-    [InlineKeyboardButton(" Owner", url="https://t.me/Deva_harki")]
+    [InlineKeyboardButton(" Owner", url=f"https://t.me/{OWNER_USERNAME}")]
 ])
 
-# ================= DOWNLOAD =================
+# ================= DOWNLOAD FUNCTIONS =================
 def download_video(url):
     ydl_opts = {
         "outtmpl": f"{DOWNLOAD_PATH}/%(title)s.%(ext)s",
@@ -89,14 +93,16 @@ def download_audio(url):
         info = ydl.extract_info(url, download=True)
         return info, f"{DOWNLOAD_PATH}/{info['title']}.mp3"
 
-# ================= START =================
+# ================= START COMMAND =================
 @app.on_message(filters.command("start"))
 async def start(client, msg):
+    # Notify owner
     await client.send_message(
         OWNER_ID,
         f" New user\n {msg.from_user.id}"
     )
 
+    # Force join check
     if not await check_join(client, msg.from_user.id):
         return await msg.reply(
             "     ",
@@ -113,7 +119,7 @@ async def start(client, msg):
 
     await msg.reply(" \n  ", reply_markup=kb)
 
-# ================= CALLBACKS =================
+# ================= CALLBACK QUERY =================
 @app.on_callback_query()
 async def callbacks(client, cb):
     uid = cb.from_user.id
@@ -141,6 +147,7 @@ async def callbacks(client, cb):
 # ================= HANDLE LINKS =================
 @app.on_message(filters.text & ~filters.command())
 async def handle_link(client, msg):
+    # Force Join
     if not await check_join(client, msg.from_user.id):
         return await msg.reply(
             "    ",
@@ -173,5 +180,5 @@ async def handle_link(client, msg):
     if os.path.exists(file_path):
         os.remove(file_path)
 
-# ================= RUN =================
+# ================= RUN BOT =================
 app.run()
