@@ -1,103 +1,159 @@
 import os
-import requests
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+import yt_dlp
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
-# ================= CONFIG =================
-API_ID = 32052427
-API_HASH = "d9e14b1e99ac33e20d41479a47d2622f"
-BOT_TOKEN = "8251863494:AAFzs3f7JVjIgpTrWgdMsoQWFDkG7Vjax48"  # <-- تۆکن لێرە زیاد بکە
-OWNER_ID = 8186735286
+# ---------- Config ----------
+BOT_TOKEN = os.getenv("BOT_TOKEN")  #      : "12345:ABCDEF"
+CHANNEL_USERNAME = "chanaly_boot"  #  @
+OWNER_USERNAME = "Deva_harki"
+USERS_FILE = "users.txt"
 
-FORCE_JOIN = ["@team_988", "@chanaly_boot"]
+COOKIES_FILE = "cookies.txt"  #  cookies export   browser
 
-# زمانەکان
-LANGS = {
-    "ku": "🤖 دەست خۆش! ڤیدیۆی TikTok داونلود بکە.",
-    "en": "🤖 Welcome! Download a TikTok video.",
-    "ar": "🤖 أهلا! قم بتنزيل فيديو TikTok.",
-    "fa": "🤖 خوش آمدید! ویدیو TikTok دانلود کنید.",
-    "tr": "🤖 Hoşgeldiniz! TikTok videosu indir.",
-    "ru": "🤖 Добро пожаловать! Скачать видео TikTok.",
-    "de": "🤖 Willkommen! TikTok-Video herunterladen.",
-    "fr": "🤖 Bienvenue! Télécharger une vidéo TikTok.",
-    "es": "🤖 ¡Bienvenido! Descarga un video de TikTok.",
-    "it": "🤖 Benvenuto! Scarica un video TikTok."
-}
+# ---------- Users Save ----------
+def save_user(user_id):
+    if not os.path.exists(USERS_FILE):
+        with open(USERS_FILE, "w") as f:
+            f.write("")
+    with open(USERS_FILE, "r") as f:
+        users = f.read().splitlines()
+    if str(user_id) not in users:
+        with open(USERS_FILE, "a") as f:
+            f.write(f"{user_id}\n")
 
-# ==========================================
+# ---------- Force Join ----------
+async def force_join_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    try:
+        member = await context.bot.get_chat_member(f"@{CHANNEL_USERNAME}", user_id)
+        return member.status in ["member", "administrator", "creator"]
+    except:
+        return False
 
-app = Client("tiktok_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+# ---------- Keyboards ----------
+def main_menu():
+    keyboard = [
+        [InlineKeyboardButton("  ", callback_data="download")],
+        [InlineKeyboardButton("  ", callback_data="about")],
+        [InlineKeyboardButton("    ", callback_data="owner")],
+        [InlineKeyboardButton(" Admin Panel", callback_data="admin")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
-ADMINS = [OWNER_ID]
+def back_button():
+    return InlineKeyboardMarkup([[InlineKeyboardButton("   ", callback_data="home")]])
 
-# --- Start Command ---
-@app.on_message(filters.private & filters.command("start"))
-async def start_cmd(client, message):
-    text = LANGS.get("ku", "🤖 Welcome!")
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📥 Download TikTok", callback_data="download")],
-        [InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin")],
-        [InlineKeyboardButton("🎵 Download Audio", callback_data="audio")]
-    ])
-    await message.reply_text(text, reply_markup=buttons)
+# ---------- Start ----------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    save_user(user.id)
+    joined = await force_join_check(update, context)
 
-# --- Callback Buttons ---
-@app.on_callback_query()
-async def button_cb(client, callback_query):
-    data = callback_query.data
-    if data == "download":
-        await callback_query.message.edit_text("📎 لینک ڤیدیۆ TikTok بنێرە")
-    elif data == "audio":
-        await callback_query.message.edit_text("🎵 لینک ڤیدیۆ TikTok بنێرە بۆ داونلودی دەنگ")
-    elif data == "admin":
-        if callback_query.from_user.id in ADMINS:
-            buttons = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📊 Users Stats", callback_data="stats")],
-                [InlineKeyboardButton("📝 Broadcast", callback_data="broadcast")]
-            ])
-            await callback_query.message.edit_text("⚙️ خۆشحاڵم بەخێر بێیت بە Admin Panel", reply_markup=buttons)
+    if not joined:
+        keyboard = [
+            [InlineKeyboardButton("  ", url=f"https://t.me/{CHANNEL_USERNAME}")],
+            [InlineKeyboardButton(" ", callback_data="check_join")]
+        ]
+        await update.message.reply_text(
+            "        ",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+
+    await update.message.reply_text(
+        "      \n\n     ",
+        reply_markup=main_menu()
+    )
+
+# ---------- Buttons ----------
+async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "home":
+        await query.edit_message_text(" ", reply_markup=main_menu())
+
+    elif query.data == "about":
+        await query.edit_message_text(
+            "  \n\n"
+            "    :\n"
+            "TikTok � Instagram � Facebook � YouTube\n\n"
+            "     \n\n"
+            f"   @{OWNER_USERNAME}",
+            reply_markup=back_button()
+        )
+
+    elif query.data == "owner":
+        await query.edit_message_text(
+            f"     \n\nhttps://t.me/{OWNER_USERNAME}",
+            reply_markup=back_button()
+        )
+
+    elif query.data == "admin":
+        if query.from_user.username != OWNER_USERNAME:
+            await query.edit_message_text("  ", reply_markup=back_button())
+            return
+        with open(USERS_FILE, "r") as f:
+            count = len(f.readlines())
+        await query.edit_message_text(f" Admin Panel\n\n  : {count}", reply_markup=back_button())
+
+    elif query.data == "download":
+        await query.edit_message_text("       ", reply_markup=back_button())
+
+    elif query.data == "check_join":
+        joined = await force_join_check(update, context)
+        if joined:
+            await query.edit_message_text("   ", reply_markup=main_menu())
         else:
-            await callback_query.message.edit_text("❌ تۆ Admin نەیت!")
+            await query.answer("   ", show_alert=True)
 
-# --- TikTok Download ---
-@app.on_message(filters.private & filters.text)
-async def tiktok_download(client, message):
-    url = message.text
-    if "tiktok.com" in url:
-        await message.reply_text("⏳ داونلود دەکرێت...")
-        try:
-            # download video unofficial
-            video_url = url.replace("www", "vm")  # TikTok unofficial endpoint
-            resp = requests.get(video_url)
-            filename = f"{message.from_user.id}.mp4"
-            with open(filename, "wb") as f:
-                f.write(resp.content)
-            await message.reply_video(filename, caption="🤖 AI TikTok Downloader")
-            os.remove(filename)
+# ---------- Download ----------
+def download_video(url, filename="video.mp4"):
+    ydl_opts = {
+        "format": "bv*+ba/best",
+        "outtmpl": filename,
+        "noplaylist": True,
+        "quiet": True,
+        "cookiefile": COOKIES_FILE,
+        "age_limit": 0,
+        "geo_bypass": True,
+        "geo_bypass_country": "US",
+        "retries": 10,
+        "fragment_retries": 10,
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Accept-Language": "en-US,en;q=0.9",
+        },
+        "ignoreerrors": False,
+        "nocheckcertificate": True,
+    }
 
-            # Notify Owner
-            await client.send_message(OWNER_ID, f"👤 User {message.from_user.id} downloaded a video:\n{url}")
-        except Exception as e:
-            await message.reply_text(f"❌ هەڵە ڕوویدا: {e}")
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
 
-# --- Audio Download ---
-@app.on_message(filters.private & filters.text)
-async def audio_download(client, message):
-    url = message.text
-    if "tiktok.com" in url:
-        await message.reply_text("🎵 داونلودی دەنگ دەکرێت...")
-        try:
-            video_url = url.replace("www", "vm")
-            resp = requests.get(video_url)
-            filename = f"{message.from_user.id}.mp3"
-            with open(filename, "wb") as f:
-                f.write(resp.content)  # simple, real audio extraction needs moviepy/ffmpeg
-            await message.reply_audio(filename, caption="🤖 AI TikTok Audio")
-            os.remove(filename)
-            await client.send_message(OWNER_ID, f"👤 User {message.from_user.id} downloaded audio:\n{url}")
-        except Exception as e:
-            await message.reply_text(f"❌ هەڵە ڕوویدا: {e}")
+async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    if "http" not in text:
+        return
+    await update.message.reply_text("   ...")
 
-# --- Run Bot ---
-app.run()
+    try:
+        file_name = "video.mp4"
+        download_video(text, file_name)
+        await update.message.reply_video(video=open(file_name, "rb"))
+        os.remove(file_name)
+    except Exception as e:
+        await update.message.reply_text(f"  \n{e}")
+
+# ---------- Main ----------
+def main():
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(buttons))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
+    print("Bot is running...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
