@@ -1,183 +1,123 @@
 import os
+import logging
 import yt_dlp
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application, CommandHandler, CallbackQueryHandler,
-    MessageHandler, ContextTypes, filters
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
 )
-import openai
 
-# ================== CONFIG ==================
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # بۆ AI chat
-
-CHANNEL_USERNAME = "chanaly_boot"
+# ================= CONFIG =================
+BOT_TOKEN = os.getenv("BOT_TOKEN")  # لە Railway دابنێ
+CHANNEL_USERNAME = "chanaly_boot"   # بەبێ @
 OWNER_USERNAME = "Deva_harki"
+COOKIES_FILE = "cookies.txt"        # ئەگەر هەیە
 
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-openai.api_key = OPENAI_API_KEY
+# ================= LOGGING =================
+logging.basicConfig(level=logging.INFO)
 
-# ================== USER STATE ==================
-USER_STATE = {}  # store temporary states like 'waiting_link' or 'ai_chat'
-
-# ================== FORCE JOIN ==================
-async def force_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ================= FORCE JOIN =================
+async def is_joined(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        m = await context.bot.get_chat_member(f"@{CHANNEL_USERNAME}", update.effective_user.id)
-        return m.status in ("member", "administrator", "creator")
+        member = await context.bot.get_chat_member(
+            f"@{CHANNEL_USERNAME}",
+            update.effective_user.id
+        )
+        return member.status in ("member", "administrator", "creator")
     except:
         return False
 
-# ================== MENUS ==================
-def main_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📥 داونلۆد ڤیدیۆ / MP3", callback_data="download")],
-        [InlineKeyboardButton("🗨️ قسە لە بوت", callback_data="chat")],
-        [InlineKeyboardButton("ℹ️ زانیاری", callback_data="about")],
-        [InlineKeyboardButton("📨 پەیوەندی", callback_data="owner")]
-    ])
-
-def back_menu():
-    return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 گەڕانەوە", callback_data="home")]])
-
-def media_type_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🎥 ڤیدیۆ", callback_data="video")],
-        [InlineKeyboardButton("🎵 MP3", callback_data="audio")],
-        [InlineKeyboardButton("🔙 گەڕانەوە", callback_data="download")]
-    ])
-
-def quality_menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("1080p", callback_data="1080")],
-        [InlineKeyboardButton("720p", callback_data="720")],
-        [InlineKeyboardButton("480p", callback_data="480")],
-        [InlineKeyboardButton("🔙 گەڕانەوە", callback_data="media_type")]
-    ])
-
-# ================== START ==================
+# ================= START =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await force_join(update, context):
-        kb = [
-            [InlineKeyboardButton("📢 چۆین بکە", url=f"https://t.me/{CHANNEL_USERNAME}")],
-            [InlineKeyboardButton("✅ پشکنینەوە", callback_data="check")]
-        ]
+    if not await is_joined(update, context):
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📢 چۆین بکە", url=f"https://t.me/{CHANNEL_USERNAME}")]
+        ])
         await update.message.reply_text(
             "🔒 تکایە سەرەتا چۆینی چانەل بکە 👇",
-            reply_markup=InlineKeyboardMarkup(kb)
+            reply_markup=kb
         )
         return
 
     await update.message.reply_text(
-        "👋 بەخێربێیت\n\n"
-        "🔗 لینک ڤیدیۆ یان پەیامەکەت بنێرە",
-        reply_markup=main_menu()
+        "👋 بەخێربێیت!\n\n"
+        "🔗 لینک ڤیدیۆ بنێرە\n"
+        "🎥 TikTok / Instagram / YouTube / Facebook\n\n"
+        "ℹ️ ئەگەر ڤیدیۆ age‑restricted بێت → cookies پێویستە",
     )
 
-# ================== BUTTON HANDLER ==================
-async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-    user_id = q.from_user.id
-    data = q.data
-
-    if data == "home":
-        USER_STATE.pop(user_id, None)
-        await q.edit_message_text("🏠 سەرەتا", reply_markup=main_menu())
-
-    elif data == "download":
-        USER_STATE[user_id] = "waiting_link"
-        await q.edit_message_text("🔗 لینک بنێرە", reply_markup=back_menu())
-
-    elif data == "chat":
-        USER_STATE[user_id] = "ai_chat"
-        await q.edit_message_text("💬 دەتوانی قسە لە بوت بکەیت (Sorani)", reply_markup=back_menu())
-
-    elif data == "about":
-        await q.edit_message_text(
-            f"🤖 Universal Downloader Bot\n🎥 TikTok/Instagram/YouTube/Facebook/X\n"
-            f"⚡ خێرا و پارێزراو\n👨‍💻 @{OWNER_USERNAME}",
-            reply_markup=back_menu()
-        )
-
-    elif data == "owner":
-        await q.edit_message_text(f"https://t.me/{OWNER_USERNAME}", reply_markup=back_menu())
-
-    elif data == "check":
-        if await force_join(update, context):
-            await q.edit_message_text("✅ سەرکەوتوو بوو", reply_markup=main_menu())
-        else:
-            await q.answer("❌ هێشتا چۆینت نەکردووە", show_alert=True)
-
-# ================== DOWNLOAD FUNCTION ==================
-def download_video(url, media_type="video", quality=None):
+# ================= DOWNLOAD =================
+def download_video(url: str):
     ydl_opts = {
         "format": "bestvideo+bestaudio/best",
-        "outtmpl": f"{DOWNLOAD_DIR}/%(title).50s.%(ext)s",
+        "outtmpl": f"{DOWNLOAD_DIR}/%(title).80s.%(ext)s",
         "merge_output_format": "mp4",
-        "noplaylist": True,
         "quiet": True,
-        "retries": 5,
-        "fragment_retries": 5,
+        "noplaylist": True,
         "geo_bypass": True,
         "nocheckcertificate": True,
-        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
-        "cookiefile": "cookies.txt" if os.path.exists("cookies.txt") else None,
+        "user_agent": "Mozilla/5.0",
     }
 
-    if media_type == "audio":
-        ydl_opts["format"] = "bestaudio/best"
-        ydl_opts["postprocessors"] = [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}]
-    elif quality:
-        ydl_opts["format"] = f"bestvideo[height<={quality}]+bestaudio/best"
+    if os.path.exists(COOKIES_FILE):
+        ydl_opts["cookiefile"] = COOKIES_FILE
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
-        if info is None:
-            raise Exception("ڤیدیۆکە private یان age-restricted ـە (cookies پێویستە)")
         return ydl.prepare_filename(info)
 
-# ================== HANDLE MESSAGES ==================
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    state = USER_STATE.get(user_id)
-    text = update.message.text.strip()
-    msg = await update.message.reply_text("⏳ کاردەکەم...")
+# ================= HANDLE LINK =================
+async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    url = update.message.text.strip()
+    msg = await update.message.reply_text("⏳ تکایە چاوەڕوان بە...")
 
     try:
-        if state == "waiting_link":
-            # default video download
-            file_path = download_video(text, media_type="video")
-            await update.message.reply_video(video=open(file_path, "rb"), caption="✅ داونلۆد سەرکەوتوو بوو")
-            os.remove(file_path)
-            USER_STATE.pop(user_id, None)
+        file_path = download_video(url)
 
-        elif state == "ai_chat":
-            # AI Chat
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role":"user","content":text}]
+        await update.message.reply_video(
+            video=open(file_path, "rb"),
+            caption="✅ داونلۆد سەرکەوتوو بوو"
+        )
+
+        os.remove(file_path)
+        await msg.delete()
+
+    except yt_dlp.utils.DownloadError as e:
+        error_text = str(e)
+
+        if "comfortable for some audiences" in error_text:
+            await msg.edit_text(
+                "🔞 ئەم ڤیدیۆیە سنووردارە (Age‑Restricted)\n\n"
+                "❗ TikTok پێویستی بە cookies هەیە\n"
+                "📌 بێ cookies ناتوانرێت داونلۆد بکرێت"
             )
-            answer = response['choices'][0]['message']['content']
-            await msg.edit_text(f"💬 {answer}")
-            USER_STATE.pop(user_id, None)
-
         else:
-            await msg.edit_text("❌ تکایە لینک یان پەیامەکەت بنێرە", reply_markup=main_menu())
+            await msg.edit_text(
+                "❌ داونلۆد سەرکەوتوو نەبوو\n"
+                "🔁 تکایە لینکێکی تر تاقی بکەوە"
+            )
 
     except Exception as e:
-        await msg.edit_text(f"❌ هەڵە ڕوویدا:\n{str(e)[:350]}")
+        await msg.edit_text("❌ هەڵەیەک ڕوویدا، دواتر تاقی بکەوە")
+        logging.error(e)
 
-# ================== MAIN ==================
+# ================= MAIN =================
 def main():
+    if not BOT_TOKEN:
+        raise RuntimeError("BOT_TOKEN set نەکراوە")
+
     app = Application.builder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(buttons))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    print("Bot running...")
-    app.run_polling()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
+
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
