@@ -1,0 +1,13 @@
+ydl_opts = {
+    "format": "bestvideo+bestaudio/best",
+    "outtmpl": f"{DOWNLOAD_DIR}/%(title).50s.%(ext)s",
+    "merge_output_format": "mp4",
+    "noplaylist": True,
+    "quiet": True,
+    "retries": 5,
+    "fragment_retries": 5,
+    "nocheckcertificate": True,
+    "geo_bypass": True,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
+    "cookiefile": "cookies.txt" if os.path.exists("cookies.txt") else None
+}
