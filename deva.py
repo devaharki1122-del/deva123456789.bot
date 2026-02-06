@@ -1,182 +1,188 @@
-# -*- coding: utf-8 -*-
-# ==================================================
-#  TELEGRAM VIDEO / MP3 DOWNLOADER BOT (ONE FILE)
-# ==================================================
+# deva.py
+#    
+# : @Deva_harki | ID: 8186735286
 
 import os
-import time
-import asyncio
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 import yt_dlp
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from datetime import datetime
 
-# ================= ENV ONLY =================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-API_ID = int(os.getenv("API_ID"))
-API_HASH = os.getenv("API_HASH")
-
 OWNER_ID = 8186735286
-OWNER_USERNAME = "Deva_harki"
+GROUP_LINKS = [
+    ("  ", "https://t.me/team_988"),
+    ("  ", "https://t.me/chanaly_boot")
+]
+LANGUAGES = {
+    "ku": "",
+    "ar": "",
+    "en": "",
+    "fa": "",
+    "tr": "",
+    "es": "",
+    "fr": "",
+    "ru": "",
+    "zh": "",
+    "de": ""
+}
+user_lang = {}
+os.makedirs("downloads", exist_ok=True)
 
-CHANNELS = ["team_988", "chanaly_boot"]  # Force Join channels
-DOWNLOAD_PATH = "downloads"
-os.makedirs(DOWNLOAD_PATH, exist_ok=True)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    uid = user.id
+    if uid != OWNER_ID:
+        await context.bot.send_message(
+            chat_id=OWNER_ID,
+            text=f" *  !*\n\n"
+                 f": {user.full_name}\nID: `{uid}`\n"
+                 f": @{user.username or 'None'}\n"
+                 f": {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            parse_mode="Markdown"
+        )
+    lang = user_lang.get(uid, "ku")
+    greeting = {"ku": f" ****! ", "en": f"Hello, **Devit**! "}.get(lang, f"Hello, **Devit**! ")
+    buttons = [
+        [InlineKeyboardButton(" ", callback_data="download")],
+        [InlineKeyboardButton(" ", callback_data="info")],
+        [InlineKeyboardButton(" ", callback_data="language")],        [InlineKeyboardButton(" VIP", callback_data="vip")],
+        [InlineKeyboardButton(" Student Mode", callback_data="student")],
+        [InlineKeyboardButton(GROUP_LINKS[0][0], url=GROUP_LINKS[0][1])],
+        [InlineKeyboardButton(GROUP_LINKS[1][0], url=GROUP_LINKS[1][1])],
+        [InlineKeyboardButton("    @Deva_harki", callback_data="contact_owner")]
+    ]
+    await update.message.reply_text(
+        f"{greeting}\n\n          !\n   .",
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="Markdown"
+    )
 
-# ================= BOT =================
-app = Client(
-    "ai_downloader_bot",
-    bot_token=BOT_TOKEN,
-    api_id=API_ID,
-    api_hash=API_HASH
-)
+async def language_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    buttons = [[InlineKeyboardButton(name, callback_data=f"set_lang_{code}")] for code, name in LANGUAGES.items()]
+    buttons.append([InlineKeyboardButton(" ", callback_data="back_start")])
+    await query.edit_message_text(" :", reply_markup=InlineKeyboardMarkup(buttons))
 
-USER_MODE = {}  # video | mp3
+async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    lang_code = query.data.split("_")[-1]
+    user_lang[query.from_user.id] = lang_code
+    await query.answer(" ! ")
+    await start(query, context)
 
-# ================= FORCE JOIN =================
-async def check_join(client, user_id):
-    """
-    Check if user joined required channels.
-    For testing, you can temporarily disable by returning True
-    """
+async def info_section(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    lang = user_lang.get(query.from_user.id, "ku")
+    info_text = {
+        "ku": "        TikTok, Instagram, YouTube,  !\n\n"
+              "•    \n•  +   \n• AI + \n•    \n\n  @Deva_harki",
+        "en": "This bot downloads videos & images from TikTok, Instagram, YouTube, and more!\n\n"
+              "• Most powerful downloader\n• Audio + Video merged\n• AI + Emojis\n• Full owner control\n\nCustomized for @Deva_harki"
+    }.get(lang, info_text["en"])
+    buttons = [
+        [InlineKeyboardButton("    @Deva_harki", callback_data="contact_owner")],
+        [InlineKeyboardButton(" ", callback_data="back_start")]
+    ]
+    await query.edit_message_text(info_text, reply_markup=InlineKeyboardMarkup(buttons))
+
+async def contact_owner(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await query.message.reply_text("   @Deva_harki:")
+
+async def forward_to_owner(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message and update.message.text and update.message.from_user.id != OWNER_ID:
+        user = update.message.from_user        msg = f" *   !*\n\n: {user.full_name}\nID: `{user.id}`\n\n{update.message.text}"
+        await context.bot.send_message(chat_id=OWNER_ID, text=msg, parse_mode="Markdown")
+        await update.message.reply_text("   ! ")
+
+async def download_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    if user_id != OWNER_ID:
+        lang = user_lang.get(user_id, "en")
+        no_access = {"ku": "  ! ", "en": "Access denied! "}
+        await update.message.reply_text(no_access.get(lang, "Access denied! "))
+        return
+
+    url = update.message.text.strip()
+    supported = ["tiktok.com", "instagram.com", "youtube.com", "youtu.be", "facebook.com", "fb.watch"]
+    if not any(domain in url for domain in supported):
+        await update.message.reply_text("  ! ")
+        return
+
+    lang = user_lang.get(user_id, "ku")
+    wait_msg = {"ku": "    …!", "en": " Devit, please wait a moment…!"}
+    msg = await update.message.reply_text(wait_msg.get(lang, " Please wait…!"))
+
+    ydl_opts = {
+        'format': 'bestvideo+bestaudio/best',
+        'outtmpl': 'downloads/%(id)s.%(ext)s',
+        'merge_output_format': 'mp4',
+        'quiet': True,
+        'no_warnings': True,
+        'noplaylist': True,
+        'socket_timeout': 20,
+        'retries': 3
+    }
+
     try:
-        for ch in CHANNELS:
-            m = await client.get_chat_member(ch, user_id)
-            if m.status == "left":
-                return False
-    except:
-        return False
-    return True
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filepath = ydl.prepare_filename(info)
+            if not os.path.exists(filepath):
+                raise Exception("   !")
 
-def join_keyboard():
-    return InlineKeyboardMarkup(
-        [[InlineKeyboardButton(" Join Channel", url=f"https://t.me/{c}")]
-         for c in CHANNELS]
-    )
+            title = info.get('title', 'Video')
+            views = info.get('view_count', 'N/A')
+            likes = info.get('like_count', 'N/A')
+            comments = info.get('comment_count', 'N/A')
+            shares = info.get('repost_count', info.get('share_count', 'N/A'))
 
-# ================= BUTTONS =================
-MAIN_KEYBOARD = InlineKeyboardMarkup([
-    [
-        InlineKeyboardButton(" ", callback_data="mode_video"),
-        InlineKeyboardButton(" MP3", callback_data="mode_mp3")
-    ],
-    [InlineKeyboardButton("    ", url=f"https://t.me/{OWNER_USERNAME}")]
-])
-
-ADMIN_KEYBOARD = InlineKeyboardMarkup([
-    [InlineKeyboardButton(" Stats", callback_data="admin_stats")],
-    [InlineKeyboardButton(" Owner", url=f"https://t.me/{OWNER_USERNAME}")]
-])
-
-# ================= DOWNLOAD FUNCTIONS =================
-def download_video(url):
-    ydl_opts = {
-        "outtmpl": f"{DOWNLOAD_PATH}/%(title)s.%(ext)s",
-        "format": "mp4/best",
-        "merge_output_format": "mp4",
-        "quiet": True
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        return info, ydl.prepare_filename(info)
-
-def download_audio(url):
-    ydl_opts = {
-        "outtmpl": f"{DOWNLOAD_PATH}/%(title)s.mp3",
-        "format": "bestaudio/best",
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "mp3",
-            "preferredquality": "192"
-        }],
-        "quiet": True
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        return info, f"{DOWNLOAD_PATH}/{info['title']}.mp3"
-
-# ================= START COMMAND =================
-@app.on_message(filters.command("start"))
-async def start(client, msg):
-    await client.send_message(
-        OWNER_ID,
-        f" New user\n {msg.from_user.id}"
-    )
-
-    if not await check_join(client, msg.from_user.id):
-        return await msg.reply(
-            "     ",
-            reply_markup=join_keyboard()
+        report = (
+            f" ** !**\n\n"
+            f": {title}\n"
+            f" : {views}\n"            f" : {likes}\n"
+            f" : {comments}\n"
+            f" : {shares}"
         )
+        await context.bot.send_message(chat_id=OWNER_ID, text=report, parse_mode="Markdown")
+        await context.bot.send_document(chat_id=OWNER_ID, document=open(filepath, 'rb'), caption="  ")
+        await msg.edit_text("   !    .")
+        os.remove(filepath)
 
-    USER_MODE[msg.from_user.id] = "video"
+    except Exception as e:
+        error_msg = f" : {str(e)[:500]}"
+        await msg.edit_text(error_msg)
+        if 'filepath' in locals() and os.path.exists(filepath):
+            os.remove(filepath)
 
-    kb = MAIN_KEYBOARD
-    if msg.from_user.id == OWNER_ID:
-        kb.inline_keyboard.append(
-            [InlineKeyboardButton(" Admin", callback_data="admin")]
-        )
+async def back_to_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    await start(query, context)
 
-    await msg.reply(" \n  ", reply_markup=kb)
+def main():
+    logging.basicConfig(level=logging.INFO)
+    app = Application.builder().token(BOT_TOKEN).build()
+    
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_handler))
+    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, forward_to_owner))
+    app.add_handler(CallbackQueryHandler(language_menu, pattern="^language$"))
+    app.add_handler(CallbackQueryHandler(set_language, pattern="^set_lang_"))
+    app.add_handler(CallbackQueryHandler(info_section, pattern="^info$"))
+    app.add_handler(CallbackQueryHandler(contact_owner, pattern="^contact_owner$"))
+    app.add_handler(CallbackQueryHandler(back_to_start, pattern="^back_start$"))
+    app.add_handler(CallbackQueryHandler(lambda u,c: u.callback_query.edit_message_text("    :"), pattern="^download$"))
+    app.add_handler(CallbackQueryHandler(lambda u,c: u.callback_query.edit_message_text(" VIP ..."), pattern="^vip$"))
+    app.add_handler(CallbackQueryHandler(lambda u,c: u.callback_query.edit_message_text(" Student Mode..."), pattern="^student$"))
 
-# ================= CALLBACK QUERY =================
-@app.on_callback_query()
-async def callbacks(client, cb):
-    uid = cb.from_user.id
+    print("   !  @Deva_harki ")
+    app.run_polling()
 
-    if cb.data == "mode_video":
-        USER_MODE[uid] = "video"
-        await cb.message.reply("  ")
-
-    elif cb.data == "mode_mp3":
-        USER_MODE[uid] = "mp3"
-        await cb.message.reply(" MP3 ")
-
-    elif cb.data == "admin" and uid == OWNER_ID:
-        await cb.message.reply(" Admin Panel", reply_markup=ADMIN_KEYBOARD)
-
-    elif cb.data == "admin_stats" and uid == OWNER_ID:
-        await cb.message.reply(
-            " Stats\n\n"
-            " Bot Running\n"
-            " Railway OK"
-        )
-
-    await cb.answer()
-
-# ================= HANDLE LINKS =================
-@app.on_message(filters.text & ~filters.command())
-async def handle_link(client, msg):
-    if not await check_join(client, msg.from_user.id):
-        return await msg.reply(
-            "    ",
-            reply_markup=join_keyboard()
-        )
-
-    mode = USER_MODE.get(msg.from_user.id, "video")
-    await msg.reply("   …")
-
-    start_time = time.time()
-
-    if mode == "mp3":
-        info, file_path = await asyncio.to_thread(download_audio, msg.text)
-        await msg.reply_audio(
-            file_path,
-            caption=f" {info.get('title')}\n @{OWNER_USERNAME}"
-        )
-    else:
-        info, file_path = await asyncio.to_thread(download_video, msg.text)
-        took = int(time.time() - start_time)
-        await msg.reply_video(
-            video=file_path,
-            caption=(
-                f" {info.get('title')}\n"
-                f" {took} sec\n"
-                f" @{OWNER_USERNAME}"
-            )
-        )
-
-    if os.path.exists(file_path):
-        os.remove(file_path)
-
-# ================= RUN BOT =================
-app.run()
+if __name__ == "__main__":
+    main()
